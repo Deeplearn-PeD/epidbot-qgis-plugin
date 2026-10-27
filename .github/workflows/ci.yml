@@ -3,6 +3,7 @@ name: Tests
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
 
 jobs:
@@ -63,3 +64,61 @@ jobs:
         with:
           name: epidbot-plugin-zip
           path: build/*.zip
+
+  release:
+    # On version tags (v*): build the ZIP, publish a GitHub release with the
+    # epidbot.zip asset, and push it to plugins.qgis.org. Runs only after all
+    # test/lint/security/package jobs pass.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [core-tests, lint, security, package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      PLUGINS_QGIS_ORG_TOKEN: ${{ secrets.PLUGINS_QGIS_ORG_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build installable ZIP
+        run: |
+          chmod +x scripts/package.sh
+          ./scripts/package.sh
+          VERSION="$(grep '^version=' metadata.txt | cut -d= -f2 | tr -d '[:space:]')"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          cp "build/epidbot-${VERSION}.zip" epidbot.zip
+      - name: Extract release notes from metadata.txt changelog
+        run: |
+          python3 -c "
+          import configparser
+          cp = configparser.ConfigParser()
+          cp.read('metadata.txt')
+          entry = cp.get('general', 'changelog').split('\n')[0].strip()
+          open('release_notes.md', 'w').write(entry + chr(10))
+          "
+      - name: Create GitHub release with the epidbot.zip asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" epidbot.zip --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "EpidBot QGIS plugin ${VERSION}" \
+              --notes-file release_notes.md \
+              epidbot.zip
+          fi
+      - name: Publish to plugins.qgis.org
+        if: ${{ env.PLUGINS_QGIS_ORG_TOKEN != '' }}
+        run: |
+          curl -sf -X POST \
+            "https://plugins.qgis.org/plugins/epidbot/version/add/api/" \
+            -H "Authorization: Bearer ${PLUGINS_QGIS_ORG_TOKEN}" \
+            -F "package=@epidbot.zip" \
+            && echo "Uploaded to plugins.qgis.org" \
+            || { echo "::warning::plugins.qgis.org upload failed - upload build/epidbot-${VERSION}.zip manually"; }
+      - name: plugins.qgis.org token missing
+        if: ${{ env.PLUGINS_QGIS_ORG_TOKEN == '' }}
+        run: |
+          echo "::warning::Secret PLUGINS_QGIS_ORG_TOKEN is not set - skipping plugins.qgis.org upload. Add it under Settings -> Secrets and variables -> Actions."
