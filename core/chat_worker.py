@@ -7,7 +7,7 @@ progress through Qt signals (which are automatically queued across threads).
 
 import threading
 
-from PyQt5.QtCore import QThread, pyqtSignal
+from qgis.PyQt.QtCore import QThread, pyqtSignal
 
 from .api_client import ChatCancelled
 

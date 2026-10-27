@@ -1,6 +1,6 @@
 """Settings dialog: server URL, API key, locale, polling."""
 
-from PyQt5.QtWidgets import (QComboBox, QDialog, QDialogButtonBox,
+from qgis.PyQt.QtWidgets import (QComboBox, QDialog, QDialogButtonBox,
                              QDoubleSpinBox, QFormLayout, QGroupBox,
                              QHBoxLayout, QLabel, QLineEdit, QPushButton,
                              QVBoxLayout)

@@ -4,7 +4,7 @@ qgisMinimumVersion=3.28
 qgisMaximumVersion=3.99
 description=Chat with EpidBot, the AI assistant for Brazilian public health data (DATASUS), without leaving QGIS.
 about=EpidBot brings the EpidBot AI assistant into QGIS as a dockable chat panel. Ask questions about epidemiological data (SINAN, SIM, SIA, SIH, malaria Atlas, and more), request charts, and load results into your project. The plugin automatically injects map context (active layers, CRS, extent) into your prompts so EpidBot can reason about what is on your map. Authentication uses a personal EpidBot API key, sent as the X-API-Key header and stored in the system keyring when available.
-version=0.1.0
+version=0.1.1
 author=EpidBot Team
 email=contact@epidbot.example
 
@@ -18,7 +18,8 @@ category=Web
 tags=epidemiology,dengue,malaria,DATASUS,SINAN,public health,AI,chat,assistant,brazil
 
 # Changelog and experimental flag for the first release.
-changelog=0.1.0 - Initial release: chat dock, API key authentication, session history, plot previews, map context injection.
+changelog=0.1.1 - Fix plugin load failure ('EpidbotPlugin' has no attribute 'tr' - plugin class now inherits QObject); imports moved to the qgis.PyQt shim for Qt5/Qt6 compatibility; API-key-only authentication with the production API URL pre-filled.
+0.1.0 - Initial release: chat dock, API key authentication, session history, plot previews, map context injection.
 experimental=True
 deprecated=False
 

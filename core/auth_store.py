@@ -32,7 +32,7 @@ _SECRET_KEYS = ("api_key",)
 
 def _default_backend():
     """Create the default QSettings-backed backend (lazy Qt import)."""
-    from PyQt5.QtCore import QSettings
+    from qgis.PyQt.QtCore import QSettings
 
     return QSettings(QSETTINGS_ORG, QSETTINGS_APP)
 

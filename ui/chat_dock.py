@@ -5,8 +5,8 @@ import re
 import tempfile
 from typing import List, Optional
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import (QCheckBox, QComboBox, QHBoxLayout, QLabel,
+from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QHBoxLayout, QLabel,
                              QPlainTextEdit, QPushButton, QScrollArea,
                              QToolButton, QVBoxLayout, QWidget)
 
@@ -372,7 +372,7 @@ class ChatDock(QWidget):
 
     def _scroll_to_bottom(self):
         bar = self.scroll_area.verticalScrollBar()
-        from PyQt5.QtCore import QTimer
+        from qgis.PyQt.QtCore import QTimer
 
         QTimer.singleShot(50, lambda: bar.setValue(bar.maximum()))
 

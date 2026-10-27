@@ -2,14 +2,14 @@
 
 ``AsyncCall`` executes a callable in a daemon ``threading.Thread`` and emits
 ``done``/``error`` signals when it finishes. Receivers must be QObject
-methods (e.g. dock/dialog methods) so PyQt5 delivers the result as a queued
+methods (e.g. dock/dialog methods) so Qt delivers the result as a queued
 call on the GUI thread - never connect plain functions to these signals.
 """
 
 import threading
 from typing import Any, Callable, Optional
 
-from PyQt5.QtCore import QObject, pyqtSignal
+from qgis.PyQt.QtCore import QObject, pyqtSignal
 
 
 class AsyncCall(QObject):

@@ -3,9 +3,9 @@
 import os
 from typing import List, Optional
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QMessageBox,
+from qgis.PyQt.QtCore import Qt, pyqtSignal
+from qgis.PyQt.QtGui import QPixmap
+from qgis.PyQt.QtWidgets import (QFileDialog, QHBoxLayout, QLabel, QMessageBox,
                              QToolButton, QVBoxLayout, QWidget)
 
 from ..core.markdown_lite import markdown_to_html
@@ -123,8 +123,8 @@ class MessageWidget(QWidget):
                                         .format(exc))
             return
         if action == "viewer":
-            from PyQt5.QtGui import QDesktopServices
-            from PyQt5.QtCore import QUrl
+            from qgis.PyQt.QtGui import QDesktopServices
+            from qgis.PyQt.QtCore import QUrl
 
             QDesktopServices.openUrl(QUrl.fromLocalFile(path))
             return

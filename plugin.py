@@ -3,9 +3,9 @@
 import os
 from typing import Optional
 
-from PyQt5.QtCore import QCoreApplication, QLocale, Qt, QTranslator
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QAction, QDockWidget
+from qgis.PyQt.QtCore import QCoreApplication, QLocale, Qt, QTranslator
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtWidgets import QAction, QDockWidget, QObject
 
 from .core.api_client import EpidBotApiClient
 from .core.auth_store import AuthStore
@@ -13,8 +13,12 @@ from .ui.chat_dock import ChatDock
 from .ui.settings_dialog import SettingsDialog
 
 
-class EpidbotPlugin:
-    """QGIS plugin controller (created by ``classFactory``)."""
+class EpidbotPlugin(QObject):
+    """QGIS plugin controller (created by ``classFactory``).
+
+    Inherits ``QObject`` so ``self.tr()`` is available for
+    translatable UI strings.
+    """
 
     DOCK_OBJECT_NAME = "EpidBotChatDock"
 
@@ -123,7 +127,7 @@ class EpidbotPlugin:
         """Open the settings dialog; apply changes on accept."""
         dialog = SettingsDialog(self.auth_store, self.client,
                                 parent=self.iface.mainWindow())
-        if dialog.exec_():
+        if dialog.exec():
             dialog.apply()
             if self.dock is not None:
                 self.dock.refresh_sessions()
