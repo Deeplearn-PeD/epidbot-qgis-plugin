@@ -4,6 +4,7 @@ Kept separate from the pure formatting logic in ``build_context_text`` so
 the latter is testable without a QGIS runtime. All QGIS imports are lazy.
 """
 
+from contextlib import suppress
 from typing import Any, Dict, List, Optional, Tuple
 
 # Do not report feature counts above this (counting huge layers is slow).
@@ -48,17 +49,14 @@ def _describe_vector_layer(qgis_layer) -> Dict[str, Any]:
         "samples": {},
         "selected": None,
     }
-    try:
+    with suppress(TypeError, ValueError, RuntimeError):
         count = int(qgis_layer.featureCount())
         if 0 < count <= _FEATURE_COUNT_LIMIT:
             entry["feature_count"] = count
-    except (TypeError, ValueError, RuntimeError):
-        pass
-    try:
+    with suppress(AttributeError, TypeError, ValueError, RuntimeError):
         entry["selected"] = int(qgis_layer.selectedFeatureCount())
-    except (AttributeError, TypeError, ValueError, RuntimeError):
-        pass
-    try:
+    # Never let schema introspection kill the prompt.
+    with suppress(Exception):
         fields = list(qgis_layer.fields())
         entry["fields"] = [{"name": f.name(), "type": f.typeName()}
                            for f in fields[:_MAX_FIELDS_LISTED]]
@@ -66,8 +64,6 @@ def _describe_vector_layer(qgis_layer) -> Dict[str, Any]:
             entry["fields_more"] = len(fields) - _MAX_FIELDS_LISTED
         if entry["feature_count"]:
             entry["samples"] = _sample_values(qgis_layer, fields)
-    except Exception:
-        pass  # Never let schema introspection kill the prompt.
     return entry
 
 
@@ -81,7 +77,7 @@ def _sample_values(qgis_layer, fields) -> Dict[str, List[str]]:
     scan = _FIELD_SAMPLE_SCAN_LIMIT
     distinct: Dict[str, List[str]] = {
         f.name(): [] for f in fields[:_MAX_FIELDS_LISTED]}
-    try:
+    with suppress(Exception):
         for feature in qgis_layer.getFeatures():
             if scan <= 0:
                 break
@@ -100,10 +96,7 @@ def _sample_values(qgis_layer, fields) -> Dict[str, List[str]]:
                 values.append(text)
                 if len(values) > _FIELD_SAMPLE_CAP:
                     distinct[field.name()] = None  # high-cardinality: drop
-    except Exception:
-        pass
     return {name: values for name, values in distinct.items() if values}
-
 
 
 def _canvas_extent_4326(canvas) -> Optional[Dict[str, Any]]:
@@ -150,23 +143,20 @@ def collect_map_context(iface, max_layers: int = 10,
     canvas = iface.mapCanvas()
     layers: List[Dict[str, Any]] = []
     for layer in canvas.layers() or []:
-        try:
+        # Never let one broken layer kill the prompt.
+        with suppress(Exception):
             if layer.type() == QgsMapLayerType.VectorLayer:
                 layers.append(_describe_vector_layer(layer))
             elif layer.type() == QgsMapLayerType.RasterLayer:
                 layers.append({"name": layer.name(),
                                "geometry_type": "raster",
                                "crs": None, "feature_count": None})
-        except Exception:
-            continue  # Never let one broken layer kill the prompt.
     extent = _canvas_extent_4326(canvas)
     project_crs = None
-    try:
+    with suppress(Exception):
         from qgis.core import QgsProject
 
         project_crs = QgsProject.instance().crs().authid()
-    except Exception:
-        pass
     return layers, extent, project_crs
 
 

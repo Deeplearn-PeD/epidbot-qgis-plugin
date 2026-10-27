@@ -10,6 +10,7 @@ injected, so this module is unit-testable without QGIS.
 """
 
 import importlib.util
+from contextlib import suppress
 from typing import Any, Dict, Optional
 
 from .api_client import DEFAULT_BASE_URL
@@ -119,10 +120,9 @@ class AuthStore:
         if value is None or value == "":
             self._backend.remove("secrets/{}".format(key))
             if self._keyring is not None:
-                try:
+                # Nothing stored (or backend unavailable) - fine.
+                with suppress(Exception):
                     self._keyring.delete_password(KEYRING_SERVICE, key)
-                except Exception:
-                    pass  # Nothing stored (or backend unavailable) - fine.
             self._backend.sync()
             return
         if self._keyring is not None:

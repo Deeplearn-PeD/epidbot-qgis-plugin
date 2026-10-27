@@ -3,6 +3,7 @@
 import os
 import re
 import tempfile
+from contextlib import suppress
 from typing import List, Optional
 
 from qgis.PyQt.QtCore import Qt, pyqtSignal
@@ -373,11 +374,10 @@ class ChatDock(QWidget):
             if not filename:
                 continue
             target = os.path.join(plots_dir(), filename)
-            try:
+            # Skip broken plots rather than failing the turn.
+            with suppress(Exception):
                 self.client.download_plot(filename, target)
                 paths.append(target)
-            except Exception:
-                continue  # Skip broken plots rather than failing the turn.
         return paths
 
     def add_plot_to_layout(self, filename: str, local_path: str):

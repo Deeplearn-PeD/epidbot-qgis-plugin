@@ -14,6 +14,7 @@ import csv
 import os
 import tempfile
 import urllib.parse
+from contextlib import suppress
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -153,10 +154,8 @@ def add_source_to_canvas(iface, source: Dict[str, Any]) -> str:
             "QGIS could not read the data in '{}'".format(label))
     apply_default_style(layer)
     QgsProject.instance().addMapLayer(layer)
-    try:
+    with suppress(Exception):
         iface.mapCanvas().refresh()
-    except Exception:
-        pass
     return layer.name()
 
 
@@ -164,9 +163,11 @@ def _write_temp_geojson(content: str) -> str:
     """Persist inline GeoJSON to the cache and return the path."""
     os.makedirs(layers_dir(), exist_ok=True)
     # A stable digest-based name avoids unbounded file growth.
+    # (Not a security hash: usedforsecurity=False documents that for scanners.)
     import hashlib
 
-    digest = hashlib.sha1(content.encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(content.encode("utf-8"),
+                          usedforsecurity=False).hexdigest()[:12]
     path = os.path.join(layers_dir(), "epidbot-{}.geojson".format(digest))
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(content)
@@ -197,7 +198,8 @@ def _csv_layer(path: str, label: str) -> Any:
 def apply_default_style(layer) -> None:
     """Give point/line/polygon layers a light categorical style when a
     well-known column (municipality, state, year, ...) is present."""
-    try:
+    # Styling is cosmetic; never block the load.
+    with suppress(Exception):
         from qgis.core import (QgsCategorizedSymbolRenderer,
                                QgsMapLayerType, QgsRandomColorRamp,
                                QgsRendererCategory, QgsSymbol)
@@ -237,5 +239,3 @@ def apply_default_style(layer) -> None:
             symbol.setColor(ramp.color(index / max(len(values) - 1, 1)))
             categories.append(QgsRendererCategory(value, symbol, str(value)))
         layer.setRenderer(QgsCategorizedSymbolRenderer(target, categories))
-    except Exception:
-        pass  # Styling is cosmetic; never block the load.

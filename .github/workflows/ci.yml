@@ -38,6 +38,19 @@ jobs:
           pip install ruff
           ruff check --select F plugin.py core/ ui/ tests/ __init__.py
 
+  security:
+    # plugins.qgis.org runs Bandit on every upload; keep the scan clean.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Bandit (match the QGIS plugin repository scanner)
+        run: |
+          pip install bandit
+          bandit -r plugin.py core/ ui/ __init__.py
+
   package:
     runs-on: ubuntu-latest
     steps:
