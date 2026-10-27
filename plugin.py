@@ -25,6 +25,7 @@ class EpidbotPlugin(QObject):
 
     def __init__(self, iface):
         """Store the QGIS interface; real work happens in ``initGui``."""
+        super().__init__()
         self.iface = iface
         self.translator: Optional[QTranslator] = None
         self.auth_store: Optional[AuthStore] = None
@@ -47,7 +48,7 @@ class EpidbotPlugin(QObject):
             poll_interval=float(self.auth_store.get_plain("poll_interval")))
 
         icon = QIcon(os.path.join(
-            os.path.dirname(__file__), "icons", "epidbot.svg"))
+            os.path.dirname(__file__), "icons", "epidbot.png"))
 
         show_action = QAction(icon, self.tr("Open EpidBot Chat"),
                               self.iface.mainWindow())
