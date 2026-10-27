@@ -3,9 +3,10 @@
 import os
 from typing import Optional
 
-from qgis.PyQt.QtCore import QCoreApplication, QLocale, Qt, QTranslator
+from qgis.PyQt.QtCore import (QCoreApplication, QLocale, QObject, Qt,
+                              QTranslator)
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction, QDockWidget, QObject
+from qgis.PyQt.QtWidgets import QAction, QDockWidget
 
 from .core.api_client import EpidBotApiClient
 from .core.auth_store import AuthStore

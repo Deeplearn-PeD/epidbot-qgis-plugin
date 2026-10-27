@@ -20,8 +20,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install test dependencies
-        run: pip install pytest requests
-      - name: Run core unit tests
+        run: pip install pytest requests PyQt5
+      - name: Run core unit tests + Qt import/construction smoke tests
         run: pytest tests/ -v
       - name: Syntax-check Qt modules (PyQt5 not installed here)
         run: python -m py_compile plugin.py core/chat_worker.py ui/*.py
