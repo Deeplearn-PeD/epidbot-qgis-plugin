@@ -3,19 +3,18 @@
 Pure Python (no Qt) so it can be unit-tested outside QGIS. Uses
 ``requests``, which is bundled with QGIS on all supported platforms.
 
-Talks to the documented EpidBot surface:
+Authentication is API-key only: the key is sent on every request via the
+``X-API-Key`` header (personal keys are created in the EpidBot web UI).
 
-- ``POST /api/v1/auth/login`` / ``POST /api/v1/auth/refresh`` - JWT auth.
+Talks to the documented EpidBot surface on the production API host
+(``https://api.epidbot.kwar-ai.com.br``):
+
+- ``GET /api/v1/auth/me`` - connection test.
 - ``POST /api/v1/chat`` / ``GET /api/v1/chat/{job_id}`` - submit + poll chat.
 - ``GET/POST /api/v1/sessions``, ``GET /api/v1/sessions/{id}/messages``.
 - ``GET /api/v1/sessions/plots/{filename}`` - authenticated plot download.
-- ``GET /api/v1/auth/me`` - connection test.
-
-Both authentication modes accepted by the backend are supported:
-``Authorization: Bearer <jwt>`` and ``X-API-Key: <key>``.
 """
 
-import threading
 import time
 from typing import Any, Callable, Dict, List, Optional
 
@@ -23,8 +22,8 @@ import requests
 
 API_PREFIX = "/api/v1"
 
-AUTH_MODE_PASSWORD = "password"
-AUTH_MODE_API_KEY = "api_key"
+# Default EpidBot API host (production).
+DEFAULT_BASE_URL = "https://api.epidbot.kwar-ai.com.br"
 
 # Chat job statuses (mirrors epidbot.api.schemas.JobStatus)
 JOB_PENDING = "pending"
@@ -45,7 +44,7 @@ class EpidBotApiError(Exception):
 
 
 class EpidBotAuthError(EpidBotApiError):
-    """Raised when authentication fails or credentials are missing."""
+    """Raised when the API key is missing, unknown, or revoked."""
 
 
 class ChatCancelled(Exception):
@@ -54,22 +53,22 @@ class ChatCancelled(Exception):
 
 
 class EpidBotApiClient:
-    """Thread-safe client for the EpidBot REST API.
+    """Client for the EpidBot REST API (API-key authentication).
 
-    The client is used from worker threads (one chat job at a time); a lock
-    guards token refresh so concurrent 401s do not race.
+    Safe to use from worker threads; a single chat job runs at a time.
     """
 
-    def __init__(self, base_url: str, auth_store=None,
+    def __init__(self, base_url: str = DEFAULT_BASE_URL, auth_store=None,
                  poll_interval: float = 1.5,
                  poll_max_interval: float = 5.0,
                  request_timeout: float = 30.0,
                  chat_timeout: float = 600.0):
         """Create a client.
 
-        :param base_url: EpidBot base URL, e.g. ``https://kwar.example``.
+        :param base_url: EpidBot API base URL
+            (default: ``https://api.epidbot.kwar-ai.com.br``).
         :param auth_store: optional :class:`core.auth_store.AuthStore` used
-            to persist and retrieve tokens/secrets.
+            to persist and retrieve the API key.
         :param poll_interval: seconds between job-status polls.
         :param poll_max_interval: cap for the poll backoff.
         :param request_timeout: per-HTTP-request timeout in seconds.
@@ -82,7 +81,6 @@ class EpidBotApiClient:
         self.request_timeout = request_timeout
         self.chat_timeout = chat_timeout
         self._session: Optional[requests.Session] = None
-        self._refresh_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Configuration helpers
@@ -108,94 +106,41 @@ class EpidBotApiClient:
         return self._session
 
     # ------------------------------------------------------------------
-    # Authentication
+    # Authentication (API key)
     # ------------------------------------------------------------------
-    @property
-    def auth_mode(self) -> str:
-        if self.auth_store is not None:
-            return self.auth_store.auth_mode
-        return AUTH_MODE_PASSWORD
-
-    def login(self, username: str, password: str) -> Dict[str, Any]:
-        """Authenticate with username/password and store the JWT pair.
-
-        :returns: the parsed login response (contains ``expires_in`` and
-            ``tos_acceptance_required``).
-        :raises EpidBotAuthError: on invalid credentials.
-        """
-        data = self._request(
-            "POST", "/auth/login",
-            json_body={"username": username, "password": password},
-            # No Authorization header on login itself.
-            skip_auth=True,
-        )
-        if self.auth_store is not None:
-            self.auth_store.set_access_token(data["access_token"])
-            self.auth_store.set_refresh_token(data["refresh_token"])
-            self.auth_store.username = username
-        return data
-
     def set_api_key(self, api_key: str) -> None:
-        """Switch to API-key authentication and persist the key."""
+        """Store the EpidBot API key used on every request."""
         if self.auth_store is not None:
-            self.auth_store.auth_mode = AUTH_MODE_API_KEY
             self.auth_store.set_api_key(api_key)
 
-    def _refresh_access_token(self) -> bool:
-        """Try to obtain a fresh access token using the refresh token.
-
-        :returns: True when refreshed; False when no refresh token exists.
-        :raises EpidBotAuthError: when the refresh endpoint rejects the token.
-        """
-        if self.auth_store is None or not self.auth_store.get_refresh_token():
-            return False
-        with self._refresh_lock:
-            # Another thread may have refreshed while we waited.
-            data = self._request(
-                "POST", "/auth/refresh",
-                json_body={"refresh_token": self.auth_store.get_refresh_token()},
-                skip_auth=True,
-            )
-            self.auth_store.set_access_token(data["access_token"])
-        return True
-
     def _auth_headers(self) -> Dict[str, str]:
-        """Build authentication headers for the current mode."""
-        headers: Dict[str, str] = {}
+        """Build the authentication header for the configured API key."""
         if self.auth_store is None:
-            return headers
-        if self.auth_mode == AUTH_MODE_API_KEY:
-            api_key = self.auth_store.get_api_key()
-            if api_key:
-                headers["X-API-Key"] = api_key
-            return headers
-        access_token = self.auth_store.get_access_token()
-        if access_token:
-            headers["Authorization"] = "Bearer {}".format(access_token)
-        return headers
+            return {}
+        api_key = self.auth_store.get_api_key()
+        if not api_key:
+            return {}
+        return {"X-API-Key": api_key}
 
     # ------------------------------------------------------------------
     # HTTP plumbing
     # ------------------------------------------------------------------
     def _request(self, method: str, path: str, json_body: Optional[dict] = None,
-                 skip_auth: bool = False, stream_to: Optional[str] = None,
-                 _retry_auth: bool = True) -> Any:
+                 stream_to: Optional[str] = None) -> Any:
         """Perform an API request against ``{base_url}/api/v1{path}``.
-
-        On a 401 (JWT mode only) a single refresh-and-retry is attempted so
-        long chat sessions survive access-token expiry transparently.
 
         :param stream_to: when set, the response body is streamed to this
             file path and the path is returned instead of parsed JSON.
         :returns: parsed JSON (dict/list), or ``stream_to`` when streaming.
+        :raises EpidBotAuthError: on 401/403 (missing/invalid API key).
+        :raises EpidBotApiError: on network failures and HTTP errors.
         """
         if not self.base_url:
             raise EpidBotApiError("EpidBot server URL is not configured.")
         url = "{}{}{}".format(self.base_url, API_PREFIX, path)
-        headers = {} if skip_auth else self._auth_headers()
         try:
             response = self.session.request(
-                method, url, json=json_body, headers=headers,
+                method, url, json=json_body, headers=self._auth_headers(),
                 timeout=self.request_timeout, stream=stream_to is not None,
             )
         except requests.exceptions.SSLError as exc:
@@ -208,21 +153,6 @@ class EpidBotApiClient:
         except requests.exceptions.Timeout as exc:
             raise EpidBotApiError(
                 "Request to EpidBot timed out: {}".format(url)) from exc
-
-        if response.status_code == 401 and _retry_auth and not skip_auth \
-                and self.auth_mode == AUTH_MODE_PASSWORD:
-            try:
-                refreshed = self._refresh_access_token()
-            except EpidBotApiError as exc:
-                raise EpidBotAuthError(
-                    "Session expired and could not be renewed: {}".format(exc),
-                    status_code=401) from exc
-            if refreshed:
-                return self._request(method, path, json_body=json_body,
-                                     skip_auth=skip_auth, stream_to=stream_to,
-                                     _retry_auth=False)
-            raise EpidBotAuthError(
-                "Authentication required. Please log in again.", status_code=401)
 
         if stream_to is not None:
             if response.status_code >= 400:
@@ -268,7 +198,7 @@ class EpidBotApiClient:
     # High-level API operations
     # ------------------------------------------------------------------
     def test_connection(self) -> Dict[str, Any]:
-        """Verify credentials against ``GET /auth/me``; returns user info."""
+        """Verify the API key against ``GET /auth/me``; returns user info."""
         return self._request("GET", "/auth/me")
 
     def list_sessions(self) -> List[dict]:
@@ -284,7 +214,7 @@ class EpidBotApiClient:
         return self._request("GET", "/sessions/{}/messages".format(session_id))
 
     def send_message(self, message: str, session_id: Optional[int] = None,
-                     locale: str = "en", cancel_event: Optional[threading.Event] = None,
+                     locale: str = "en", cancel_event=None,
                      on_status: Optional[Callable[[str], None]] = None,
                      on_submitted: Optional[Callable[[str, int], None]] = None,
                      ) -> Dict[str, Any]:
@@ -294,8 +224,8 @@ class EpidBotApiClient:
         then ``GET /chat/{job_id}`` is polled until completion. A missing
         ``session_id`` makes EpidBot create the session server-side.
 
-        :param cancel_event: when set, polling stops and
-            :class:`ChatCancelled` is raised.
+        :param cancel_event: optional ``threading.Event``; when set, polling
+            stops and :class:`ChatCancelled` is raised.
         :param on_status: progress callback receiving human-readable status.
         :param on_submitted: callback with ``(job_id, session_id)`` once the
             job is accepted.

@@ -25,9 +25,9 @@ package.
   layers, their CRS and feature counts, the reprojected canvas extent
   (EPSG:4326), and the project CRS to every prompt, so EpidBot can reason
   about *what is on your map*.
-- **Two authentication modes** — EpidBot username/password (JWT with
-  automatic refresh) or a personal API key (`X-API-Key`). Secrets go to the
-  system keyring when the optional `keyring` package is available, with a
+- **API-key authentication** — a personal EpidBot API key is sent on every
+  request via the `X-API-Key` header. The key is stored in the system
+  keyring when the optional `keyring` package is available, with a
   documented QSettings fallback.
 - **Sessions** — pick an existing chat session, start a new one, or let the
   server auto-create one per conversation. History (including plots) is
@@ -56,17 +56,17 @@ package.
 
 | Setting | Meaning |
 |---|---|
-| Server URL | Base URL of the EpidBot instance, e.g. `https://kwar.example` |
-| Authentication | `EpidBot account (password)` or `API key` |
+| Server URL | EpidBot API base URL: `https://api.epidbot.kwar-ai.com.br` (pre-filled default) |
+| API key | Personal EpidBot API key (created in the EpidBot web UI), sent as `X-API-Key` on every request |
 | Answer language | `en` / `pt-BR` (sent as `locale` to `/chat`) |
 | Status poll interval | Seconds between job-status polls (default 1.5 s) |
 
-Settings live in QSettings (`EpidBot` / `EpidBotQGISPlugin`); tokens and the
-API key are stored in the system keyring when `keyring` is installed.
+Settings live in QSettings (`EpidBot` / `EpidBotQGISPlugin`); the API key is
+stored in the system keyring when `keyring` is installed.
 
 ## API endpoints used
 
-- `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `GET /api/v1/auth/me`
+- `GET /api/v1/auth/me`
 - `POST /api/v1/chat`, `GET /api/v1/chat/{job_id}`
 - `GET/POST /api/v1/sessions`, `GET /api/v1/sessions/{id}/messages`
 - `GET /api/v1/sessions/plots/{filename}`

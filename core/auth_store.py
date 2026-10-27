@@ -1,10 +1,9 @@
-"""Persistent storage for plugin settings and authentication secrets.
+"""Persistent storage for plugin settings and the EpidBot API key.
 
 Non-secret settings live in ``QSettings`` (org "EpidBot", app
-"EpidBotQGISPlugin"). Secrets (JWT tokens and the API key) are stored in the
-system keyring via the optional ``keyring`` package when available, with a
-documented fallback to ``QSettings`` so the plugin still works on minimal
-installations.
+"EpidBotQGISPlugin"). The API key is stored in the system keyring via the
+optional ``keyring`` package when available, with a documented fallback to
+``QSettings`` so the plugin still works on minimal installations.
 
 The Qt/keyring imports are lazy and the backend/keyring module can be
 injected, so this module is unit-testable without QGIS.
@@ -13,24 +12,22 @@ injected, so this module is unit-testable without QGIS.
 import importlib.util
 from typing import Any, Dict, Optional
 
+from .api_client import DEFAULT_BASE_URL
+
 QSETTINGS_ORG = "EpidBot"
 QSETTINGS_APP = "EpidBotQGISPlugin"
 KEYRING_SERVICE = "EpidBot QGIS Plugin"
 
-AUTH_MODE_PASSWORD = "password"
-AUTH_MODE_API_KEY = "api_key"
-
-# Plain (non-secret) settings with defaults.
+# Plain (non-secret) settings with defaults. The default server URL is the
+# production EpidBot API host; users only need to paste their API key.
 _PLAIN_KEYS = {
-    "base_url": "",
-    "auth_mode": AUTH_MODE_PASSWORD,
-    "username": "",
+    "base_url": DEFAULT_BASE_URL,
     "locale": "en",
     "poll_interval": 1.5,
     "include_map_context": True,
 }
 
-_SECRET_KEYS = ("access_token", "refresh_token", "api_key", "password")
+_SECRET_KEYS = ("api_key",)
 
 
 def _default_backend():
@@ -53,7 +50,7 @@ def _load_keyring():
 
 
 class AuthStore:
-    """Stores plugin configuration and authentication secrets."""
+    """Stores plugin configuration and the EpidBot API key."""
 
     def __init__(self, backend: Optional[Any] = None,
                  keyring_module: Optional[Any] = None):
@@ -62,9 +59,9 @@ class AuthStore:
         :param backend: object exposing the ``QSettings`` subset used here
             (``value``, ``setValue``, ``remove``, ``sync``). Defaults to
             ``QSettings``.
-        :param keyring_module: the ``keyring`` module to use for secrets, or
-            None to auto-detect. The sentinel string ``"disabled"`` forces
-            the QSettings fallback (used by tests).
+        :param keyring_module: the ``keyring`` module to use for the secret,
+            or None to auto-detect. The sentinel string ``"disabled"``
+            forces the QSettings fallback (used by tests).
         """
         self._backend = backend if backend is not None else _default_backend()
         self._keyring = (keyring_module if keyring_module != "disabled"
@@ -151,23 +148,6 @@ class AuthStore:
         value = self._backend.value("secrets/{}".format(key), None)
         return value if isinstance(value, str) and value else None
 
-    # Typed convenience accessors for the three secrets.
-    def get_access_token(self) -> Optional[str]:
-        """Return the stored JWT access token, if any."""
-        return self._read_secret("access_token")
-
-    def set_access_token(self, token: Optional[str]) -> None:
-        """Store or clear the JWT access token."""
-        self._store_secret("access_token", token)
-
-    def get_refresh_token(self) -> Optional[str]:
-        """Return the stored JWT refresh token, if any."""
-        return self._read_secret("refresh_token")
-
-    def set_refresh_token(self, token: Optional[str]) -> None:
-        """Store or clear the JWT refresh token."""
-        self._store_secret("refresh_token", token)
-
     def get_api_key(self) -> Optional[str]:
         """Return the stored EpidBot API key, if any."""
         return self._read_secret("api_key")
@@ -176,34 +156,17 @@ class AuthStore:
         """Store or clear the EpidBot API key."""
         self._store_secret("api_key", key)
 
-    def get_password(self) -> Optional[str]:
-        """Return the remembered password (JWT mode convenience), if any."""
-        return self._read_secret("password")
-
-    def set_password(self, password: Optional[str]) -> None:
-        """Store or clear the remembered password."""
-        self._store_secret("password", password)
-
     # ------------------------------------------------------------------
     # Lifecycle helpers
     # ------------------------------------------------------------------
-    def clear_tokens(self) -> None:
-        """Forget all authentication material but keep preferences."""
-        self.set_access_token(None)
-        self.set_refresh_token(None)
-
     def clear_all(self) -> None:
         """Reset every setting and secret."""
-        self.clear_tokens()
         self.set_api_key(None)
-        self.set_password(None)
         for key in _PLAIN_KEYS:
             self._backend.remove(key)
         self._cache.clear()
         self._backend.sync()
 
     def has_credentials(self) -> bool:
-        """True when either a JWT pair or an API key is available."""
-        if self.get_plain("auth_mode") == AUTH_MODE_API_KEY:
-            return bool(self.get_api_key())
-        return bool(self.get_access_token() or self.get_refresh_token())
+        """True when an API key is available."""
+        return bool(self.get_api_key())
