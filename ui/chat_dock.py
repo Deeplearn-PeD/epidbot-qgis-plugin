@@ -11,8 +11,10 @@ from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QHBoxLayout, QLabel,
                              QToolButton, QVBoxLayout, QWidget)
 
 from ..core import map_context_qgis
+from ..core import layer_loader
 from ..core.api_client import EpidBotApiClient
 from ..core.chat_worker import ChatWorker
+from ..core.geo_extract import extract_geo_sources
 from .async_call import AsyncCall
 from .message_widget import MessageWidget
 
@@ -55,6 +57,8 @@ class ChatDock(QWidget):
         self._pending_downloads: List[AsyncCall] = []
         self._history_call: Optional[AsyncCall] = None
         self._sessions_call: Optional[AsyncCall] = None
+        self._geo_call: Optional[AsyncCall] = None
+        self._thread: List[dict] = []
         self._build_ui()
         self.refresh_sessions()
 
@@ -86,6 +90,11 @@ class ChatDock(QWidget):
         settings_button.setToolTip(self.tr("EpidBot settings"))
         settings_button.clicked.connect(self.settingsRequested.emit)
         top.addWidget(settings_button)
+        export_button = QToolButton(self)
+        export_button.setText("\U0001F4E4")
+        export_button.setToolTip(self.tr("Export conversation to Markdown"))
+        export_button.clicked.connect(self.export_conversation)
+        top.addWidget(export_button)
         layout.addLayout(top)
 
         # Message list
@@ -105,6 +114,19 @@ class ChatDock(QWidget):
             bool(self.auth_store.get_plain("include_map_context")))
         self.context_check.toggled.connect(self._on_context_toggled)
         layout.addWidget(self.context_check)
+
+        # Quick prompts
+        self.quick_combo = QComboBox(self)
+        self.quick_combo.addItem(self.tr("Quick prompts..."), None)
+        for preset in (
+                self.tr("Summarize the latest dengue season in Brazil"),
+                self.tr("Which datasets cover malaria in the Amazon?"),
+                self.tr("Explain the active layers on my map"),
+                self.tr("How do I download SINAN data for my state?"),
+                self.tr("What is the population at risk in my map extent?")):
+            self.quick_combo.addItem(preset, preset)
+        self.quick_combo.activated.connect(self._on_quick_prompt)
+        layout.addWidget(self.quick_combo)
 
         # Status line
         self.status_label = QLabel("", self)
@@ -255,6 +277,46 @@ class ChatDock(QWidget):
                 self.tr("Could not collect map context: {}").format(exc))
             return ""
 
+    # ------------------------------------------------------------------
+    # Spatial prompts
+    # ------------------------------------------------------------------
+    def reveal_and_prefill(self, text: str):
+        """Show the dock and put ``text`` in the input box, ready to edit."""
+        parent = self.parentWidget()
+        if parent is not None:
+            parent.show()
+            parent.raise_()
+        self.input_edit.setPlainText(text)
+        self.input_edit.setFocus()
+
+    def prompt_about_extent(self):
+        """Pre-fill a prompt focused on the current canvas extent."""
+        # The extent prompt is pointless without the context block.
+        if not self.context_check.isChecked():
+            self.context_check.setChecked(True)
+        self.reveal_and_prefill(self.tr(
+            "Focus on the current map extent. Describe the spatial patterns "
+            "of the active layers within this extent and suggest the next "
+            "analysis steps."))
+
+    def prompt_about_selection(self):
+        """Pre-fill a prompt carrying a summary of the selected features."""
+        try:
+            summary = map_context_qgis.collect_selection_summary(self.iface)
+        except Exception as exc:  # noqa: BLE001 - context is best-effort
+            summary = None
+            self._set_status(
+                self.tr("Could not collect selection: {}").format(exc))
+        if not summary:
+            self._set_status(self.tr(
+                "No features selected on the map. Select features first."))
+            return
+        self.reveal_and_prefill(self.tr(
+            "Analyze the features I selected on the map (details below) and "
+            "summarize their spatial pattern:\n\n[selection]\n{}\n"
+            "[/selection]").format(summary))
+
+
     def _on_submitted(self, job_id: str, session_id: int):
         """Adopt the server-created session when none was selected."""
         if self.session_id is None and session_id:
@@ -347,13 +409,51 @@ class ChatDock(QWidget):
             level=0, duration=4)
 
     # ------------------------------------------------------------------
+    # Conversation export
+    # ------------------------------------------------------------------
+    def export_conversation(self):
+        """Write the visible thread to a user-chosen Markdown file."""
+        from qgis.PyQt.QtWidgets import QFileDialog
+
+        if not self._thread:
+            self._set_status(self.tr("Nothing to export yet."))
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Export conversation"), "epidbot-chat.md",
+            "Markdown (*.md);;All files (*)")
+        if not path:
+            return
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("# EpidBot conversation\n\n")
+                for message in self._thread:
+                    title = {"user": self.tr("You"),
+                             "assistant": "EpidBot"}.get(
+                        message["role"], self.tr("System"))
+                    fh.write("## {}\n\n{}\n".format(title, message["text"]))
+                    for plot in message["plot_files"]:
+                        fh.write("![plot]({})\n".format(plot))
+                    fh.write("\n")
+        except OSError as exc:
+            self._set_status(
+                self.tr("Could not export conversation: {}").format(exc))
+            return
+        self._set_status(self.tr("Conversation exported to {}.").format(path))
+
+    # ------------------------------------------------------------------
     # Message list helpers
     # ------------------------------------------------------------------
     def _add_message(self, role: str, text: str, plot_files=None):
+        geo_sources = (extract_geo_sources(text)
+                       if role == "assistant" else [])
         widget = MessageWidget(role, text, plot_files=plot_files,
+                               geo_sources=geo_sources,
                                parent=self.messages_host)
         widget.plotActionRequested.connect(self._on_plot_action)
+        widget.geoActionRequested.connect(self._on_geo_action)
         self.messages_layout.addWidget(widget)
+        self._thread.append({"role": role, "text": text,
+                             "plot_files": list(plot_files or [])})
         self._scroll_to_bottom()
 
     def _on_plot_action(self, filename: str, action: str):
@@ -363,12 +463,43 @@ class ChatDock(QWidget):
         if os.path.exists(local_path):
             self.add_plot_to_layout(filename, local_path)
 
+    def _on_geo_action(self, source: dict):
+        """Load a geodata source from a message onto the map canvas."""
+        if getattr(self, "_geo_call", None) is not None:
+            self._set_status(self.tr("Still loading the previous dataset..."))
+            return
+        label = str(source.get("label", ""))
+        self._set_status(self.tr("Loading '{}' onto the map...").format(label))
+        self._geo_call = AsyncCall(
+            lambda: layer_loader.add_source_to_canvas(self.iface, source), self)
+        self._geo_call.done.connect(self._on_geo_loaded)
+        self._geo_call.error.connect(self._on_geo_error)
+        self._geo_call.start()
+
+    def _on_geo_loaded(self, layer_name: str):
+        self._geo_call = None
+        self._set_status("")
+        self.iface.messageBar().pushMessage(
+            self.tr("EpidBot"),
+            self.tr("Layer '{}' added to the map.").format(layer_name),
+            level=3, duration=4)
+
+    def _on_geo_error(self, message: str):
+        self._geo_call = None
+        self._set_status("")
+        self.iface.messageBar().pushMessage(
+            self.tr("EpidBot"),
+            self.tr("Could not load geodata: {}").format(message),
+            level=1, duration=6)
+
+
     def _clear_messages(self):
         while self.messages_layout.count():
             item = self.messages_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+        self._thread = []
 
     def _scroll_to_bottom(self):
         bar = self.scroll_area.verticalScrollBar()
@@ -389,3 +520,12 @@ class ChatDock(QWidget):
 
     def _on_context_toggled(self, checked: bool):
         self.auth_store.set_plain("include_map_context", bool(checked))
+
+    def _on_quick_prompt(self, index: int):
+        """Drop a preset prompt into the input box for editing."""
+        prompt = self.quick_combo.itemData(index)
+        self.quick_combo.setCurrentIndex(0)  # back to the placeholder
+        if not prompt:
+            return
+        self.input_edit.setPlainText(prompt)
+        self.input_edit.setFocus()

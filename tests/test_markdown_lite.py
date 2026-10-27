@@ -1,6 +1,6 @@
 """Tests for :mod:`core.markdown_lite` (safe markdown-to-HTML subset)."""
 
-from core.markdown_lite import markdown_to_html
+from core.markdown_lite import markdown_blocks, markdown_to_html
 
 
 class TestEscaping:
@@ -75,3 +75,62 @@ class TestBlocks:
     def test_empty_input(self):
         assert markdown_to_html("") == ""
         assert markdown_to_html(None) == ""
+
+
+class TestTables:
+    """Pipe tables render as bordered HTML tables."""
+
+    def test_simple_table(self):
+        html = markdown_to_html(
+            "| município | casos |\n|---|---|\n| Rio | 452 |\n| Niterói | 87 |")
+        assert "<table" in html and "</table>" in html
+        assert "<th>município</th>" in html
+        assert "<td>Rio</td>" in html and "<td>452</td>" in html
+
+    def test_table_cells_are_escaped_and_inlined(self):
+        html = markdown_to_html("| a | b |\n|---|---|\n| <x> | **bold** |")
+        assert "&lt;x&gt;" in html
+        assert "<b>bold</b>" in html
+
+    def test_separator_row_is_not_rendered(self):
+        html = markdown_to_html("| a | b |\n|---|---|\n| 1 | 2 |")
+        assert "<td>---</td>" not in html
+
+    def test_unseparated_pipe_rows_are_not_a_table(self):
+        html = markdown_to_html("| a | b |\n| 1 | 2 |")
+        assert "<table" not in html
+
+    def test_table_inside_full_answer(self):
+        text = ("Intro paragraph.\n\n| ano | casos |\n|---|---|\n"
+                "| 2023 | 100 |\n| 2024 | 200 |\n\nOutro.")
+        html = markdown_to_html(text)
+        assert "<p>Intro paragraph.</p>" in html
+        assert "<table" in html
+        assert "<p>Outro.</p>" in html
+
+
+class TestMarkdownBlocks:
+    """Block splitting used by the chat UI."""
+
+    def test_code_block_exposes_raw_source(self):
+        blocks = markdown_blocks("```sql\nSELECT <data>\n```")
+        assert len(blocks) == 1
+        assert blocks[0]["kind"] == "code"
+        assert blocks[0]["lang"] == "sql"
+        assert blocks[0]["code"] == "SELECT <data>"  # unescaped raw source
+        assert "&lt;data&gt;" in blocks[0]["html"]
+
+    def test_html_block(self):
+        blocks = markdown_blocks("plain **text**")
+        assert len(blocks) == 1
+        assert blocks[0]["kind"] == "html"
+        assert "<b>text</b>" in blocks[0]["html"]
+
+    def test_mixed_content_keeps_order(self):
+        blocks = markdown_blocks(
+            "Intro\n\n```python\nprint(1)\n```\n\nOutro")
+        assert [b["kind"] for b in blocks] == ["html", "code", "html"]
+
+    def test_empty_input(self):
+        assert markdown_blocks("") == []
+        assert markdown_blocks(None) == []

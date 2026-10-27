@@ -153,11 +153,81 @@ class TestAuthenticationErrors:
         fake = MagicMock()
         fake.request.side_effect = requests_lib.exceptions.ConnectionError(
             "boom")
-        client, _ = make_client()
+        client, _ = make_client(max_retries=0)
         with mock.patch.object(api_client.requests, "Session",
                                return_value=fake):
             with pytest.raises(EpidBotApiError, match="Could not reach"):
                 client.list_sessions()
+
+
+class TestRetries:
+    """Transient failures (connection, timeouts, 502/503/504) are retried."""
+
+    def _patch_sleep(self):
+        return mock.patch.object(api_client.time, "sleep")
+
+    def test_503_is_retried_then_succeeds(self):
+        fake = FakeSession([FakeResponse(503), FakeResponse(200, json_data=[])])
+        client, _ = make_client(max_retries=2)
+        with mock.patch.object(api_client.requests, "Session",
+                               return_value=fake), self._patch_sleep():
+            result = client.list_sessions()
+        assert result == []
+        assert len(fake.calls) == 2
+
+    def test_backoff_delays_double_each_attempt(self):
+        fake = FakeSession([FakeResponse(503), FakeResponse(503),
+                            FakeResponse(200, json_data=[])])
+        client, _ = make_client(max_retries=2, retry_base_delay=0.5)
+        sleeps = []
+        with mock.patch.object(api_client.requests, "Session",
+                               return_value=fake), \
+                mock.patch.object(api_client.time, "sleep", sleeps.append):
+            client.list_sessions()
+        assert sleeps == [0.5, 1.0]
+
+    def test_503_on_last_attempt_raises_with_status(self):
+        fake = FakeSession([FakeResponse(503), FakeResponse(503)])
+        client, _ = make_client(max_retries=1)
+        with mock.patch.object(api_client.requests, "Session",
+                               return_value=fake), self._patch_sleep():
+            with pytest.raises(EpidBotApiError, match="HTTP 503"):
+                client.list_sessions()
+        assert len(fake.calls) == 2
+
+    def test_connection_error_retried_then_raises(self):
+        import requests as requests_lib
+
+        fake = MagicMock()
+        fake.request.side_effect = requests_lib.exceptions.ConnectionError(
+            "boom")
+        client, _ = make_client(max_retries=2)
+        with mock.patch.object(api_client.requests, "Session",
+                               return_value=fake), self._patch_sleep():
+            with pytest.raises(EpidBotApiError, match="Could not reach"):
+                client.list_sessions()
+        assert fake.request.call_count == 3
+
+    def test_auth_errors_are_never_retried(self):
+        fake = FakeSession([FakeResponse(401, json_data={"detail": "no"})])
+        client, _ = make_client(max_retries=2)
+        with mock.patch.object(api_client.requests, "Session",
+                               return_value=fake):
+            with pytest.raises(EpidBotAuthError):
+                client.list_sessions()
+        assert len(fake.calls) == 1
+
+    def test_ssl_errors_are_never_retried(self):
+        import requests as requests_lib
+
+        fake = MagicMock()
+        fake.request.side_effect = requests_lib.exceptions.SSLError("bad cert")
+        client, _ = make_client(max_retries=2)
+        with mock.patch.object(api_client.requests, "Session",
+                               return_value=fake):
+            with pytest.raises(EpidBotApiError, match="SSL error"):
+                client.list_sessions()
+        assert fake.request.call_count == 1
 
 
 class TestSendMessage:

@@ -21,23 +21,29 @@ package.
 - **Dockable chat panel** — ask questions about epidemiological data without
   leaving QGIS. Answers render with basic Markdown, including inline chart
   thumbnails.
-- **Map-context injection** — a toggle (on by default) prepends your active
-  layers, their CRS and feature counts, the reprojected canvas extent
-  (EPSG:4326), and the project CRS to every prompt, so EpidBot can reason
-  about *what is on your map*.
+- **Map integration** — EpidBot understands your map and can feed it back:
+  - *Map-context injection* — active layers (with fields, sample values and
+    selections), canvas extent (EPSG:4326) and project CRS are prepended to
+    every prompt.
+  - *Spatial prompts* — one-click toolbar actions to ask about the current
+    map extent or the features you have selected.
+  - *"Add to map"* — GeoJSON blocks and dataset URLs in answers become styled
+    map layers on the canvas with a single click.
 - **API-key authentication** — a personal EpidBot API key is sent on every
   request via the `X-API-Key` header. The key is stored in the system
   keyring when the optional `keyring` package is available, with a
   documented QSettings fallback.
 - **Sessions** — pick an existing chat session, start a new one, or let the
   server auto-create one per conversation. History (including plots) is
-  reloaded when switching sessions.
+  reloaded when switching sessions. Conversations can be exported to
+  Markdown.
 - **Plot actions** — every agent-generated chart can be saved to disk,
   opened in the image viewer, or embedded into an *"EpidBot Plots"* print
   layout.
 - **Non-blocking UI** — chat submission/polling runs on a worker thread;
   the Submit + Poll REST pattern (`POST /chat` → `GET /chat/{job_id}`) keeps
-  the plugin simple and proxy-friendly (no WebSocket dependency).
+  the plugin simple and proxy-friendly (no WebSocket dependency). Transient
+  network failures are retried automatically.
 - **Internationalized** — English and Brazilian Portuguese UI; the answer
   language sent to EpidBot is configurable.
 

@@ -61,6 +61,20 @@ class EpidbotPlugin(QObject):
         settings_action.triggered.connect(self.show_settings)
         self._register_action(settings_action)
 
+        extent_action = QAction(self.tr("Ask EpidBot about this extent"),
+                                self.iface.mainWindow())
+        extent_action.setToolTip(self.tr(
+            "Start a chat prompt focused on the current map extent"))
+        extent_action.triggered.connect(self._prompt_about_extent)
+        self._register_action(extent_action)
+
+        selection_action = QAction(self.tr("Ask EpidBot about selection"),
+                                   self.iface.mainWindow())
+        selection_action.setToolTip(self.tr(
+            "Start a chat prompt analyzing the features selected on the map"))
+        selection_action.triggered.connect(self._prompt_about_selection)
+        self._register_action(selection_action)
+
         self._create_dock()
 
     def unload(self):
@@ -121,6 +135,16 @@ class EpidbotPlugin(QObject):
         """Show/hide the chat dock (toolbar action entry point)."""
         if self.dock_widget is not None:
             self.dock_widget.setVisible(checked)
+
+    def _prompt_about_extent(self):
+        """Start an extent-focused prompt (toolbar action entry point)."""
+        if self.dock is not None:
+            self.dock.prompt_about_extent()
+
+    def _prompt_about_selection(self):
+        """Start a selection-analysis prompt (toolbar action entry point)."""
+        if self.dock is not None:
+            self.dock.prompt_about_selection()
 
     # ------------------------------------------------------------------
     # Settings

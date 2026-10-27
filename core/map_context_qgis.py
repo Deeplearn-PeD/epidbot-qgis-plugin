@@ -9,6 +9,16 @@ from typing import Any, Dict, List, Optional, Tuple
 # Do not report feature counts above this (counting huge layers is slow).
 _FEATURE_COUNT_LIMIT = 100_000
 
+# Number of features scanned to collect sample values for the context block.
+_FIELD_SAMPLE_SCAN_LIMIT = 300
+
+# Distinct values kept per field; fields exceeding this are treated as
+# high-cardinality (e.g. ids) and dropped from the sample list.
+_FIELD_SAMPLE_CAP = 8
+
+# Maximum number of fields named in the context preamble.
+_MAX_FIELDS_LISTED = 15
+
 # Do not reproject/report extents larger than the whole world in degrees.
 _VALID_EXTENT_MAX_DEGREES = 361.0
 
@@ -34,6 +44,9 @@ def _describe_vector_layer(qgis_layer) -> Dict[str, Any]:
         "geometry_type": _geometry_type_name(qgis_layer),
         "crs": qgis_layer.crs().authid() if qgis_layer.crs().isValid() else None,
         "feature_count": None,
+        "fields": [],
+        "samples": {},
+        "selected": None,
     }
     try:
         count = int(qgis_layer.featureCount())
@@ -41,7 +54,56 @@ def _describe_vector_layer(qgis_layer) -> Dict[str, Any]:
             entry["feature_count"] = count
     except (TypeError, ValueError, RuntimeError):
         pass
+    try:
+        entry["selected"] = int(qgis_layer.selectedFeatureCount())
+    except (AttributeError, TypeError, ValueError, RuntimeError):
+        pass
+    try:
+        fields = list(qgis_layer.fields())
+        entry["fields"] = [{"name": f.name(), "type": f.typeName()}
+                           for f in fields[:_MAX_FIELDS_LISTED]]
+        if len(fields) > _MAX_FIELDS_LISTED:
+            entry["fields_more"] = len(fields) - _MAX_FIELDS_LISTED
+        if entry["feature_count"]:
+            entry["samples"] = _sample_values(qgis_layer, fields)
+    except Exception:
+        pass  # Never let schema introspection kill the prompt.
     return entry
+
+
+def _sample_values(qgis_layer, fields) -> Dict[str, List[str]]:
+    """Collect a few distinct values per field to hint at its content.
+
+    Fields whose distinct count exceeds :data:`_FIELD_SAMPLE_CAP` within the
+    scanned features (ids, names, ...) are omitted: only plausible categorical
+    fields are reported.
+    """
+    scan = _FIELD_SAMPLE_SCAN_LIMIT
+    distinct: Dict[str, List[str]] = {
+        f.name(): [] for f in fields[:_MAX_FIELDS_LISTED]}
+    try:
+        for feature in qgis_layer.getFeatures():
+            if scan <= 0:
+                break
+            scan -= 1
+            attrs = feature.attributes()
+            for idx, field in enumerate(fields[:_MAX_FIELDS_LISTED]):
+                values = distinct.get(field.name())
+                if values is None:  # already marked high-cardinality
+                    continue
+                raw = attrs[idx] if idx < len(attrs) else None
+                if raw is None:
+                    continue
+                text = str(raw).strip()
+                if not text or text in values:
+                    continue
+                values.append(text)
+                if len(values) > _FIELD_SAMPLE_CAP:
+                    distinct[field.name()] = None  # high-cardinality: drop
+    except Exception:
+        pass
+    return {name: values for name, values in distinct.items() if values}
+
 
 
 def _canvas_extent_4326(canvas) -> Optional[Dict[str, Any]]:
@@ -106,3 +168,81 @@ def collect_map_context(iface, max_layers: int = 10,
     except Exception:
         pass
     return layers, extent, project_crs
+
+
+# ---------------------------------------------------------------------------
+# Selection summaries (used by the "ask about selection" spatial prompt)
+# ---------------------------------------------------------------------------
+
+# Render at most this many selected features in detail.
+_SELECTION_FEATURE_LIMIT = 20
+
+# Attribute values shown per feature.
+_SELECTION_FIELD_LIMIT = 8
+
+# Guard against absurd attribute strings.
+_SELECTION_VALUE_MAX_CHARS = 60
+
+
+def collect_selection_summary(iface, max_features: int = _SELECTION_FEATURE_LIMIT,
+                              ) -> Optional[str]:
+    """Build a compact text summary of the features selected on the canvas.
+
+    :returns: a multi-line string (without trailing newline) or ``None`` when
+        nothing is selected.
+    """
+    canvas = iface.mapCanvas()
+    lines: List[str] = []
+    try:
+        canvas_layers = canvas.layers() or []
+    except Exception:
+        canvas_layers = []
+    for layer in canvas_layers:
+        try:
+            selected = int(layer.selectedFeatureCount())
+        except (AttributeError, TypeError, ValueError, RuntimeError):
+            continue
+        if selected <= 0:
+            continue
+        lines.append('- "{}": {:,} selected'.format(
+            layer.name(), selected).replace(",", " "))
+        detail = _selected_features_detail(layer, selected, max_features)
+        if detail:
+            lines.append(detail)
+    if not lines:
+        return None
+    return "\n".join(lines)
+
+
+def _selected_features_detail(layer, selected: int,
+                              max_features: int) -> Optional[str]:
+    """Render up to ``max_features`` selected features as key=value lines."""
+    try:
+        fields = list(layer.fields())
+        feature_ids = list(layer.selectedFeatureIds())[:max_features]
+        if not feature_ids:
+            return None
+        iterator = layer.getFeatures(feature_ids)
+        rows = []
+        for feature in iterator:
+            attrs = feature.attributes()
+            pairs = []
+            for idx, field in enumerate(fields[:_SELECTION_FIELD_LIMIT]):
+                raw = attrs[idx] if idx < len(attrs) else None
+                if raw is None:
+                    continue
+                text = str(raw).strip()
+                if len(text) > _SELECTION_VALUE_MAX_CHARS:
+                    text = text[:_SELECTION_VALUE_MAX_CHARS] + "..."
+                if text:
+                    pairs.append("{}={}".format(field.name(), text))
+            if pairs:
+                rows.append("  - " + ", ".join(pairs))
+        hidden = selected - len(rows)
+        if hidden > 0:
+            rows.append("  - ... and {:,} more".format(hidden).replace(
+                ",", " "))
+        return "\n".join(rows) if rows else None
+    except Exception:
+        return None  # Selection detail is best-effort.
+

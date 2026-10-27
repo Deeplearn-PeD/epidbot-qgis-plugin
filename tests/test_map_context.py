@@ -39,3 +39,53 @@ class TestBuildContextText:
         layer["feature_count"] = None
         text = build_context_text([layer], None, None)
         assert "features" not in text
+
+    def test_selected_count_is_reported(self):
+        layer = dict(LAYER, selected=17)
+        text = build_context_text([layer], None, None)
+        assert "17 selected" in text
+
+    def test_zero_selection_is_omitted(self):
+        layer = dict(LAYER, selected=0)
+        text = build_context_text([layer], None, None)
+        assert "selected" not in text
+
+    def test_fields_and_samples_are_listed(self):
+        layer = dict(LAYER, fields=[
+            {"name": "municipio", "type": "string"},
+            {"name": "casos", "type": "integer"},
+        ], samples={"municipio": ["Rio de Janeiro", "Niterói"]})
+        text = build_context_text([layer], None, None)
+        assert "fields: municipio (string), casos (integer)" in text
+        assert "sample values: municipio in {Rio de Janeiro, Niterói}" in text
+
+    def test_fields_more_is_listed(self):
+        layer = dict(LAYER, fields=[{"name": "id", "type": "integer"}],
+                     fields_more=7)
+        text = build_context_text([layer], None, None)
+        assert "... and 7 more" in text
+
+    def test_long_sample_lists_are_truncated(self):
+        layer = dict(LAYER, fields=[{"name": "uf", "type": "string"}],
+                     samples={"uf": ["RJ", "SP", "MG", "ES", "BA", "PR"]})
+        text = build_context_text([layer], None, None)
+        assert "RJ, SP, MG, ES, BA, ..." in text
+        assert "PR" not in text
+
+
+class TestLayerDetailText:
+    """Edge cases of the per-layer detail line."""
+
+    def test_no_fields_gives_no_detail_line(self):
+        from core.map_context import _layer_detail_text
+        assert _layer_detail_text(LAYER) == ""
+
+    def test_at_most_four_sample_fields(self):
+        from core.map_context import _layer_detail_text
+        samples = {"f{}".format(i): ["x"] for i in range(6)}
+        layer = dict(LAYER, fields=[
+            {"name": "f{}".format(i), "type": "string"} for i in range(6)],
+            samples=samples)
+        text = _layer_detail_text(layer)
+        assert text.count(" in {") == 4
+

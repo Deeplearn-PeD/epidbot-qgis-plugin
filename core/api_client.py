@@ -32,6 +32,9 @@ JOB_COMPLETED = "completed"
 JOB_FAILED = "failed"
 JOB_CANCELLED = "cancelled"
 
+# Transient server failures worth an automatic retry.
+_RETRYABLE_STATUS_CODES = {502, 503, 504}
+
 
 class EpidBotApiError(Exception):
     """Base error for all EpidBot API interactions."""
@@ -62,7 +65,9 @@ class EpidBotApiClient:
                  poll_interval: float = 1.5,
                  poll_max_interval: float = 5.0,
                  request_timeout: float = 30.0,
-                 chat_timeout: float = 600.0):
+                 chat_timeout: float = 600.0,
+                 max_retries: int = 2,
+                 retry_base_delay: float = 0.5):
         """Create a client.
 
         :param base_url: EpidBot API base URL
@@ -73,6 +78,9 @@ class EpidBotApiClient:
         :param poll_max_interval: cap for the poll backoff.
         :param request_timeout: per-HTTP-request timeout in seconds.
         :param chat_timeout: overall deadline for a chat job in seconds.
+        :param max_retries: automatic retries for transient failures
+            (connection errors, timeouts, HTTP 502/503/504).
+        :param retry_base_delay: first backoff delay; doubles each attempt.
         """
         self.base_url = self._normalize_base_url(base_url)
         self.auth_store = auth_store
@@ -80,6 +88,8 @@ class EpidBotApiClient:
         self.poll_max_interval = poll_max_interval
         self.request_timeout = request_timeout
         self.chat_timeout = chat_timeout
+        self.max_retries = max(int(max_retries), 0)
+        self.retry_base_delay = float(retry_base_delay)
         self._session: Optional[requests.Session] = None
 
     # ------------------------------------------------------------------
@@ -129,6 +139,9 @@ class EpidBotApiClient:
                  stream_to: Optional[str] = None) -> Any:
         """Perform an API request against ``{base_url}/api/v1{path}``.
 
+        Transient failures (connection errors, timeouts, HTTP 502/503/504)
+        are retried automatically with exponential backoff.
+
         :param stream_to: when set, the response body is streamed to this
             file path and the path is returned instead of parsed JSON.
         :returns: parsed JSON (dict/list), or ``stream_to`` when streaming.
@@ -138,21 +151,35 @@ class EpidBotApiClient:
         if not self.base_url:
             raise EpidBotApiError("EpidBot server URL is not configured.")
         url = "{}{}{}".format(self.base_url, API_PREFIX, path)
-        try:
-            response = self.session.request(
-                method, url, json=json_body, headers=self._auth_headers(),
-                timeout=self.request_timeout, stream=stream_to is not None,
-            )
-        except requests.exceptions.SSLError as exc:
-            raise EpidBotApiError(
-                "SSL error contacting EpidBot at {}: {}".format(url, exc)) from exc
-        except requests.exceptions.ConnectionError as exc:
-            raise EpidBotApiError(
-                "Could not reach EpidBot at {}. Check the server URL and "
-                "your connection.".format(url)) from exc
-        except requests.exceptions.Timeout as exc:
-            raise EpidBotApiError(
-                "Request to EpidBot timed out: {}".format(url)) from exc
+        attempts = self.max_retries + 1
+        for attempt in range(attempts):
+            try:
+                response = self.session.request(
+                    method, url, json=json_body, headers=self._auth_headers(),
+                    timeout=self.request_timeout, stream=stream_to is not None,
+                )
+            except requests.exceptions.SSLError as exc:
+                # Certificate problems will not fix themselves: never retry.
+                raise EpidBotApiError(
+                    "SSL error contacting EpidBot at {}: {}".format(url, exc)
+                ) from exc
+            except (requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout) as exc:
+                if attempt + 1 < attempts:
+                    self._sleep_backoff(attempt)
+                    continue
+                if isinstance(exc, requests.exceptions.Timeout):
+                    raise EpidBotApiError(
+                        "Request to EpidBot timed out: {}".format(url)
+                    ) from exc
+                raise EpidBotApiError(
+                    "Could not reach EpidBot at {}. Check the server URL "
+                    "and your connection.".format(url)) from exc
+            if (response.status_code in _RETRYABLE_STATUS_CODES
+                    and attempt + 1 < attempts):
+                self._sleep_backoff(attempt)
+                continue
+            break
 
         if stream_to is not None:
             if response.status_code >= 400:
@@ -182,6 +209,10 @@ class EpidBotApiClient:
         except ValueError as exc:
             raise EpidBotApiError(
                 "EpidBot returned a non-JSON response for {}".format(path)) from exc
+
+    def _sleep_backoff(self, attempt: int) -> None:
+        """Wait before retry ``attempt`` (0-based); doubles each time."""
+        time.sleep(self.retry_base_delay * (2 ** attempt))
 
     @staticmethod
     def _error_detail(response) -> str:
