@@ -1,8 +1,9 @@
 # EpidBot QGIS Plugin
 
 [![Tests](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Deeplearn-PeD/epidbot-qgis-plugin)](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/releases/latest)
+[![Download ZIP](https://img.shields.io/badge/download-epidbot.zip-2ea44f?logo=github)](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/releases/latest/download/epidbot.zip)
 [![License: GPL v2+](https://img.shields.io/github/license/Deeplearn-PeD/epidbot-qgis-plugin)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0-0b6e6e)](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/releases)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![QGIS](https://img.shields.io/badge/QGIS-3.28%2B-589632?logo=qgis&logoColor=white)](https://qgis.org/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -42,8 +43,12 @@ package.
 
 ## Installation (from ZIP)
 
-1. Package the plugin: `./scripts/package.sh` → `build/epidbot-<version>.zip`.
-2. In QGIS: *Plugins → Manage and Install Plugins → Install from ZIP*.
+1. **Download the latest plugin ZIP**:
+   **[epidbot.zip](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/releases/latest/download/epidbot.zip)**
+   — always points at the most recent release. (To build it yourself, run
+   `./scripts/package.sh` → `build/epidbot-<version>.zip`.)
+2. In QGIS: *Plugins → Manage and Install Plugins → Install from ZIP* and
+   select the downloaded file.
 3. Open the *EpidBot Chat* panel from the toolbar and configure the server
    URL and credentials via the ⚙ button in the panel.
 
