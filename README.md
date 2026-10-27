@@ -1,5 +1,13 @@
 # EpidBot QGIS Plugin
 
+[![Tests](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/actions/workflows/ci.yml)
+[![License: GPL v2+](https://img.shields.io/github/license/Deeplearn-PeD/epidbot-qgis-plugin)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-0b6e6e)](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/releases)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![QGIS](https://img.shields.io/badge/QGIS-3.28%2B-589632?logo=qgis&logoColor=white)](https://qgis.org/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Issues](https://img.shields.io/github/issues/Deeplearn-PeD/epidbot-qgis-plugin)](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/issues)
+
 Chat with **EpidBot** — the AI assistant for Brazilian public health data
 (DATASUS/SINAN, malaria Atlas, and more) — directly inside QGIS.
 

@@ -9,9 +9,9 @@ author=EpidBot Team
 email=contact@epidbot.example
 
 # Endorsement: the plugin talks to a self-hosted / hosted EpidBot instance.
-homepage=https://github.com/epidbot/epidbot-qgis-plugin
-tracker=https://github.com/epidbot/epidbot-qgis-plugin/issues
-repository=https://github.com/epidbot/epidbot-qgis-plugin
+homepage=https://github.com/Deeplearn-PeD/epidbot-qgis-plugin
+tracker=https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/issues
+repository=https://github.com/Deeplearn-PeD/epidbot-qgis-plugin
 
 icon=icons/epidbot.svg
 category=Web
