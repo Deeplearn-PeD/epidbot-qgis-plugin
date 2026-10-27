@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+
+# Packaging
+build/
+dist/
+*.zip
+
+# Qt build artifacts
+*.qm
+*.ui.h
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

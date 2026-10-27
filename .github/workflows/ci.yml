@@ -1,0 +1,52 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # QGIS 3.x bundles Python 3.9 (older releases) through 3.12;
+        # core modules must stay compatible with the full range.
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test dependencies
+        run: pip install pytest requests
+      - name: Run core unit tests
+        run: pytest tests/ -v
+      - name: Syntax-check Qt modules (PyQt5 not installed here)
+        run: python -m py_compile plugin.py core/chat_worker.py ui/*.py
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Ruff (pyflakes rules)
+        run: |
+          pip install ruff
+          ruff check --select F plugin.py core/ ui/ tests/ __init__.py
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build installable ZIP
+        run: |
+          chmod +x scripts/package.sh
+          ./scripts/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: epidbot-plugin-zip
+          path: build/*.zip
