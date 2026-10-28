@@ -1,8 +1,8 @@
 """EpidBot QGIS plugin.
 
 Lets QGIS users chat with EpidBot (https://github.com/epidbot) through its
-REST API: submit questions about Brazilian public health data, browse chat
-sessions, and bring generated plots into the current project.
+REST API: submit questions about public health and epidemiological data,
+browse chat sessions, and bring generated plots into the current project.
 
 This project is a standalone repository; it only talks to EpidBot over HTTP
 and does not import the epidbot Python package.

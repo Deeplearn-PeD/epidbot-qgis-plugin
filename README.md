@@ -10,8 +10,9 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Issues](https://img.shields.io/github/issues/Deeplearn-PeD/epidbot-qgis-plugin)](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/issues)
 
-Chat with **EpidBot** — the AI assistant for Brazilian public health data
-(DATASUS/SINAN, malaria Atlas, and more) — directly inside QGIS.
+Chat with **EpidBot** — the AI assistant for public health and epidemiological
+data, from Brazilian DATASUS systems (SINAN, SIM, SIA, SIH) to WHO, PAHO,
+ECDC, CDC and the Malaria Atlas — directly inside QGIS.
 
 This is a standalone repository; the plugin talks to an EpidBot server over
 its REST API (`/api/v1/...`) and does not import the `epidbot` Python
