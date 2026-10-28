@@ -4,6 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/Deeplearn-PeD/epidbot-qgis-plugin)](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/releases/latest)
 [![Download ZIP](https://img.shields.io/badge/download-epidbot.zip-2ea44f?logo=github)](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/releases/latest/download/epidbot.zip)
 [![License: GPL v2+](https://img.shields.io/github/license/Deeplearn-PeD/epidbot-qgis-plugin)](LICENSE)
+[![QGIS plugin repository](https://img.shields.io/badge/QGIS%20plugins-epidbot-589632?logo=qgis&logoColor=white)](https://plugins.qgis.org/plugins/epidbot/)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![QGIS](https://img.shields.io/badge/QGIS-3.28%2B-589632?logo=qgis&logoColor=white)](https://qgis.org/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -47,7 +48,21 @@ package.
 - **Internationalized** — English and Brazilian Portuguese UI; the answer
   language sent to EpidBot is configurable.
 
-## Installation (from ZIP)
+## Installation
+
+### From the official QGIS plugin repository (recommended)
+
+The plugin is published as [EpidBot](https://plugins.qgis.org/plugins/epidbot/)
+(plugin ID **6764**) in the QGIS plugin repository:
+
+1. In QGIS: *Plugins → Manage and Install Plugins*
+2. Search for **EpidBot** and click *Install Plugin*.
+3. Open the *EpidBot Chat* panel from the toolbar and configure the server
+   URL and credentials via the ⚙ button in the panel.
+
+Installed this way the plugin is updated by the QGIS plugin manager itself.
+
+### From ZIP (newer than the published version)
 
 1. **Download the latest plugin ZIP**:
    **[epidbot.zip](https://github.com/Deeplearn-PeD/epidbot-qgis-plugin/releases/latest/download/epidbot.zip)**
