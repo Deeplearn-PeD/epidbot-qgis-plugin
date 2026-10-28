@@ -112,12 +112,19 @@ jobs:
       - name: Publish to plugins.qgis.org
         if: ${{ env.PLUGINS_QGIS_ORG_TOKEN != '' }}
         run: |
-          curl -sf -X POST \
+          response="$(curl -s -w $'\n%{http_code}' -X POST \
             "https://plugins.qgis.org/plugins/epidbot/version/add/api/" \
             -H "Authorization: Bearer ${PLUGINS_QGIS_ORG_TOKEN}" \
-            -F "package=@epidbot.zip" \
-            && echo "Uploaded to plugins.qgis.org" \
-            || { echo "::warning::plugins.qgis.org upload failed - upload build/epidbot-${VERSION}.zip manually"; }
+            -F "package=@epidbot.zip")"
+          code="$(printf '%s' "$response" | tail -n1)"
+          body="$(printf '%s' "$response" | sed '$d')"
+          if [ "$code" = 200 ] || [ "$code" = 201 ]; then
+            echo "Uploaded to plugins.qgis.org"
+          elif printf '%s' "$body" | grep -qi "unique\|already exists"; then
+            echo "::warning::Version ${VERSION} already exists on plugins.qgis.org - nothing to do (this release was uploaded before)."
+          else
+            echo "::warning::plugins.qgis.org upload failed (HTTP ${code}): ${body} - upload build/epidbot-${VERSION}.zip manually"
+          fi
       - name: plugins.qgis.org token missing
         if: ${{ env.PLUGINS_QGIS_ORG_TOKEN == '' }}
         run: |
