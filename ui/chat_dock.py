@@ -4,19 +4,23 @@ import os
 import re
 import tempfile
 from contextlib import suppress
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from qgis.PyQt.QtCore import Qt, pyqtSignal
-from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QHBoxLayout, QLabel,
-                             QPlainTextEdit, QPushButton, QScrollArea,
-                             QToolButton, QVBoxLayout, QWidget)
+from qgis.PyQt.QtWidgets import (QApplication, QCheckBox, QComboBox,
+                              QHBoxLayout, QInputDialog, QLabel, QMenu,
+                              QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
+                              QToolButton, QVBoxLayout, QWidget)
 
-from ..core import map_context_qgis
+from ..core import layer_editor
+from ..core import layer_export
 from ..core import layer_loader
+from ..core import map_context_qgis
 from ..core.api_client import EpidBotApiClient
 from ..core.chat_worker import ChatWorker
-from ..core.geo_extract import extract_geo_sources
+from ..core.geo_extract import extract_edit_ops, extract_geo_sources
 from .async_call import AsyncCall
+from .edit_preview_dialog import EditPreviewDialog
 from .message_widget import MessageWidget
 
 _PLOT_REF_RE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)\)")
@@ -59,6 +63,8 @@ class ChatDock(QWidget):
         self._history_call: Optional[AsyncCall] = None
         self._sessions_call: Optional[AsyncCall] = None
         self._geo_call: Optional[AsyncCall] = None
+        self._attach_call: Optional[AsyncCall] = None
+        self._attachments: List[dict] = []
         self._thread: List[dict] = []
         self._build_ui()
         self.refresh_sessions()
@@ -128,6 +134,33 @@ class ChatDock(QWidget):
             self.quick_combo.addItem(preset, preset)
         self.quick_combo.activated.connect(self._on_quick_prompt)
         layout.addWidget(self.quick_combo)
+
+        # Pending layer attachments (chips) + attach button
+        attach_row = QHBoxLayout()
+        attach_button = QToolButton(self)
+        attach_button.setText("\U0001F4CE")
+        attach_button.setToolTip(self.tr("Attach layer data to the message"))
+        menu = QMenu(attach_button)
+        menu.addAction(self.tr("Attach selected features"),
+                       lambda: self._on_attach(layer_export.SCOPE_SELECTION))
+        menu.addAction(self.tr("Attach visible features in extent"),
+                       lambda: self._on_attach(layer_export.SCOPE_EXTENT))
+        menu.addAction(self.tr("Attach entire layer…"),
+                       lambda: self._on_attach(layer_export.SCOPE_ALL))
+        menu.addSeparator()
+        menu.addAction(self.tr("Attach identifiers only (for edits)"),
+                       lambda: self._on_attach(layer_export.SCOPE_IDENTIFIERS))
+        attach_button.setMenu(menu)
+        attach_button.setPopupMode(QToolButton.InstantPopup)
+        attach_row.addWidget(attach_button)
+        attach_row.addStretch(1)
+        layout.addLayout(attach_row)
+
+        self.attach_chips_host = QWidget(self)
+        self.attach_chips_layout = QHBoxLayout(self.attach_chips_host)
+        self.attach_chips_layout.setContentsMargins(0, 0, 0, 0)
+        self.attach_chips_host.hide()
+        layout.addWidget(self.attach_chips_host)
 
         # Status line
         self.status_label = QLabel("", self)
@@ -245,11 +278,19 @@ class ChatDock(QWidget):
         self.input_edit.clear()
         self._add_message("user", text)
 
+        attachment_blocks = self._attachment_blocks()
+        artifact_ids = [attachment["artifact_id"]
+                        for attachment in self._attachments
+                        if attachment.get("artifact_id") is not None]
+        self._clear_attachments()
+
         payload = text
         if self.context_check.isChecked():
             context = self._collect_context()
             if context:
                 payload = "{}\n\n---\n\n{}".format(context, text)
+        if attachment_blocks:
+            payload = "\n\n".join(attachment_blocks + [payload])
         self._set_status(self.tr("Submitting to EpidBot..."))
         self._set_busy(True)
 
@@ -257,6 +298,7 @@ class ChatDock(QWidget):
             self.client, payload,
             session_id=self.session_id,
             locale=str(self.auth_store.get_plain("locale")) or "en",
+            artifact_ids=artifact_ids,
             parent=self)
         self._worker.submitted.connect(self._on_submitted)
         self._worker.statusChanged.connect(self._set_status)
@@ -441,8 +483,303 @@ class ChatDock(QWidget):
         self._set_status(self.tr("Conversation exported to {}.").format(path))
 
     # ------------------------------------------------------------------
+    # Layer attachments
+    # ------------------------------------------------------------------
+    def _inline_budget_bytes(self) -> int:
+        kb = float(self.auth_store.get_plain("inline_budget_kb") or 64.0)
+        return int(kb * 1024)
+
+    def _vector_layers(self) -> List[Any]:
+        """Currently visible vector layers, canvas order."""
+        from qgis.core import QgsMapLayerType
+
+        try:
+            layers = self.iface.mapCanvas().layers() or []
+        except Exception:
+            return []
+        return [layer for layer in layers
+                if layer.type() == QgsMapLayerType.VectorLayer]
+
+    def _pick_layer(self):
+        """Choose one vector layer; None when there is nothing to pick."""
+        layers = self._vector_layers()
+        if not layers:
+            self._set_status(self.tr("No vector layers on the map."))
+            return None
+        if len(layers) == 1:
+            return layers[0]
+        names = [layer.name() for layer in layers]
+        choice, ok = QInputDialog.getItem(
+            self, self.tr("Attach layer"),
+            self.tr("Choose a layer:"), names, 0, False)
+        if not ok:
+            return None
+        return layers[names.index(choice)]
+
+    def _on_attach(self, scope: str):
+        layer = self._pick_layer()
+        if layer is None:
+            return
+        if scope == layer_export.SCOPE_SELECTION \
+                and not layer.selectedFeatureIds():
+            self._set_status(self.tr(
+                "No features selected on the map. Select features first."))
+            return
+        extent = map_context_qgis.canvas_extent_4326(self.iface)
+        self._start_attachment_build(layer, scope, extent, precision=6)
+
+    def _start_attachment_build(self, layer, scope, extent, precision: int):
+        """Serialize off-thread; reductions continue on the UI thread."""
+        if self._attach_call is not None:
+            self._set_status(self.tr("Still preparing the previous "
+                                     "attachment..."))
+            return
+        self._set_status(self.tr("Preparing attachment..."))
+        self._attach_call = AsyncCall(
+            lambda: layer_export.collect_geojson(
+                layer, scope, extent=extent,
+                budget_bytes=self._inline_budget_bytes(),
+                precision=precision),
+            self)
+        self._attach_call.done.connect(
+            lambda result, layer=layer, scope=scope, extent=extent,
+            precision=precision: self._on_attachment_prepared(
+                layer, scope, extent, precision, result))
+        self._attach_call.error.connect(self._on_attachment_error)
+
+    def _on_attachment_error(self, message: str):
+        self._attach_call = None
+        self._set_status("")
+        choice = self._ask_stats_or_cancel(message)
+        if choice == "stats":
+            self._fall_back_to_stats()
+
+    def _on_attachment_prepared(self, layer, scope, extent, precision: int,
+                                result: dict):
+        self._attach_call = None
+        self._set_status("")
+        if not result["over_budget"]:
+            self._add_attachment(result)
+            return
+        choice = self._ask_reduction(scope, bool(layer.selectedFeatureIds()),
+                                     result)
+        if choice == "extent":
+            self._start_attachment_build(layer, layer_export.SCOPE_EXTENT,
+                                         map_context_qgis.canvas_extent_4326(
+                                             self.iface),
+                                         precision)
+        elif choice == "selection":
+            self._start_attachment_build(layer, layer_export.SCOPE_SELECTION,
+                                         None, precision)
+        elif choice == "precision":
+            self._start_attachment_build(layer, scope, extent,
+                                         4 if precision > 4 else 3)
+        elif choice == "artifact":
+            self._upload_as_artifact(layer, scope, extent, result)
+        elif choice == "stats":
+            self._fall_back_to_stats()
+
+    def _ask_reduction(self, scope: str, has_selection: bool,
+                       result: dict) -> Optional[str]:
+        """Interactive reduction menu; returns a choice token or None."""
+        size_kb = result["size_bytes"] // 1024 + 1
+        budget_kb = self._inline_budget_bytes() // 1024
+        box = QMessageBox(self)
+        box.setWindowTitle(self.tr("Attachment too large"))
+        box.setText(self.tr(
+            "'{label}' is {size} KB, above the {budget} KB inline budget.")
+            .format(label=result["label"], size=size_kb, budget=budget_kb))
+        tokens = []
+        options = []
+        if scope == layer_export.SCOPE_ALL:
+            options.append((self.tr("Limit to current extent"), "extent"))
+        if scope == layer_export.SCOPE_EXTENT and has_selection:
+            options.append((self.tr("Narrow to selected features"),
+                            "selection"))
+        options.append((self.tr("Reduce coordinate precision"), "precision"))
+        if bool(self.auth_store.get_plain("artifact_uploads")):
+            options.append((self.tr("Upload as artifact (server)"),
+                            "artifact"))
+        options.append((self.tr("Send statistics only"), "stats"))
+        options.append((self.tr("Cancel"), None))
+        for label, token in options:
+            button = box.addButton(label, QMessageBox.ActionRole
+                                   if token else QMessageBox.RejectRole)
+            tokens.append((button, token))
+        box.exec()
+        clicked = box.clickedButton()
+        for button, token in tokens:
+            if button is clicked:
+                return token
+        return None
+
+    def _ask_stats_or_cancel(self, message: str) -> Optional[str]:
+        box = QMessageBox(self)
+        box.setWindowTitle(self.tr("Attachment failed"))
+        box.setText(message)
+        stats = box.addButton(self.tr("Send statistics only"),
+                              QMessageBox.ActionRole)
+        box.addButton(self.tr("Cancel"), QMessageBox.RejectRole)
+        box.exec()
+        return "stats" if box.clickedButton() is stats else None
+
+    def _fall_back_to_stats(self):
+        """Stats-only: the context block already carries layer summaries."""
+        if not self.context_check.isChecked():
+            self.context_check.setChecked(True)
+        self._set_status(self.tr(
+            "Attachment dropped - the map context (field names, sample "
+            "values, counts) will be sent instead."))
+
+    def _upload_as_artifact(self, layer, scope, extent, result: dict):
+        """Tier 2: upload the serialized layer as a server artifact."""
+        self._set_status(self.tr("Uploading artifact..."))
+        path = os.path.join(layer_loader.layers_dir(), "upload.geojson")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(result["geojson"])
+        call = AsyncCall(lambda: self.client.upload_artifact(path), self)
+        call.done.connect(lambda response, r=result: self.
+                          _on_artifact_uploaded(response, r))
+        call.error.connect(self._on_artifact_upload_error)
+        self._attach_call = call
+        call.start()
+
+    def _on_artifact_uploaded(self, response: dict, result: dict):
+        self._attach_call = None
+        self._set_status("")
+        artifact_id = response.get("id") or response.get("artifact_id")
+        if artifact_id is None:
+            self._set_status(self.tr(
+                "Server did not return an artifact id."))
+            return
+        self._add_attachment(dict(result, artifact_id=int(artifact_id)))
+
+    def _on_artifact_upload_error(self, message: str):
+        self._attach_call = None
+        self._set_status("")
+        self._set_status(self.tr(
+            "Artifact upload failed: {}").format(message))
+
+    def _add_attachment(self, result: dict):
+        self._attachments.append(result)
+        self._rebuild_chips()
+
+    def _rebuild_chips(self):
+        while self.attach_chips_layout.count():
+            item = self.attach_chips_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        for index, attachment in enumerate(self._attachments):
+            size_kb = attachment["size_bytes"] // 1024 + 1
+            if attachment.get("artifact_id") is not None:
+                text = "{} \u2192 artifact {}".format(
+                    attachment["label"], attachment["artifact_id"])
+            else:
+                text = "{} — {:,} feats, {} KB".format(
+                    attachment["label"],
+                    attachment["feature_count"], size_kb) \
+                    .replace(",", " ")
+            chip = QWidget(self.attach_chips_host)
+            row = QHBoxLayout(chip)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(QLabel("\U0001F4CE " + text, chip))
+            remove = QToolButton(chip)
+            remove.setText("\u2715")
+            remove.setToolTip(self.tr("Remove attachment"))
+            remove.clicked.connect(
+                lambda _=False, i=index: self._remove_attachment(i))
+            row.addWidget(remove)
+            row.addStretch(1)
+            self.attach_chips_layout.addWidget(chip)
+        self.attach_chips_host.setVisible(bool(self._attachments))
+
+    def _remove_attachment(self, index: int):
+        if 0 <= index < len(self._attachments):
+            self._attachments.pop(index)
+            self._rebuild_chips()
+
+    def _clear_attachments(self):
+        self._attachments = []
+        self._rebuild_chips()
+
+    def _attachment_blocks(self) -> List[str]:
+        """Serialize pending attachments as prompt text blocks."""
+        blocks = []
+        for attachment in self._attachments:
+            if attachment.get("artifact_id") is not None:
+                blocks.append(
+                    "[attachment: {label} -> artifact {aid}]".format(
+                        label=attachment["label"],
+                        aid=attachment["artifact_id"]))
+                continue
+            blocks.append(
+                "[attachment: {label}]\n```geojson\n{geojson}\n```\n"
+                "[/attachment]".format(label=attachment["label"],
+                                       geojson=attachment["geojson"]))
+        return blocks
+
+    # ------------------------------------------------------------------
+    # Attribute write-back
+    # ------------------------------------------------------------------
+    def prompt_edit_layer(self):
+        """Attach identifiers of a layer and pre-fill an edit prompt."""
+        layer = self._pick_layer()
+        if layer is None:
+            return
+        self._on_attach(layer_export.SCOPE_IDENTIFIERS)
+        join_hint = ""
+        key = layer_export.pick_join_key(
+            [field.name() for field in layer.fields()])
+        if key:
+            join_hint = self.tr(
+                " Join the data by the '{}' field.").format(key)
+        self.reveal_and_prefill(self.tr(
+            "Add a new field to this layer with the data you can fetch "
+            "(e.g. population counts).{hint} Use the identifiers attached "
+            "above as join keys and return the result as an epidbot-edit "
+            "block.").format(hint=join_hint))
+
+    def _on_edit_action(self, op: dict):
+        """Open the preview dialog for an edit op proposed by EpidBot."""
+        from qgis.core import QgsProject, QgsMapLayerType
+
+        hint = str(op.get("layer") or "")
+        candidates = [layer for layer in QgsProject.instance().mapLayersByName(
+            hint) if layer.type() == QgsMapLayerType.VectorLayer] \
+            if hint else []
+        dialog = EditPreviewDialog(candidates, op, self)
+        if not dialog.exec():
+            return
+        layer = dialog.layer
+        if layer is None or dialog.op is None:
+            return
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            report = layer_editor.apply_edit_op(layer, dialog.op)
+        except layer_editor.EditOpError as exc:
+            self.iface.messageBar().pushMessage(
+                self.tr("EpidBot"),
+                self.tr("Edit not applied: {}").format(exc),
+                level=1, duration=8)
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+        unmatched = len(report["unmatched"])
+        note = self.tr(" ({unmatched} keys did not match)").format(
+            unmatched=unmatched) if unmatched else ""
+        self.iface.messageBar().pushMessage(
+            self.tr("EpidBot"),
+            self.tr("{op} '{field}' on '{layer}': {matched} features{note}")
+            .format(op=report["op"], field=report["field"],
+                    layer=report["layer"], matched=report["matched"],
+                    note=note),
+            level=3, duration=6)
+
+    # ------------------------------------------------------------------
     # Message list helpers
     # ------------------------------------------------------------------
+
     def _add_message(self, role: str, text: str, plot_files=None):
         geo_sources = (extract_geo_sources(text)
                        if role == "assistant" else [])
@@ -451,6 +788,11 @@ class ChatDock(QWidget):
                                parent=self.messages_host)
         widget.plotActionRequested.connect(self._on_plot_action)
         widget.geoActionRequested.connect(self._on_geo_action)
+        widget.editActionRequested.connect(self._on_edit_action)
+        if role == "assistant":
+            edit_ops = extract_edit_ops(text)
+            if edit_ops:
+                widget.set_edit_ops(edit_ops)
         self.messages_layout.addWidget(widget)
         self._thread.append({"role": role, "text": text,
                              "plot_files": list(plot_files or [])})
@@ -471,10 +813,19 @@ class ChatDock(QWidget):
         label = str(source.get("label", ""))
         self._set_status(self.tr("Loading '{}' onto the map...").format(label))
         self._geo_call = AsyncCall(
-            lambda: layer_loader.add_source_to_canvas(self.iface, source), self)
+            lambda: layer_loader.add_source_to_canvas(
+                self.iface, source, headers=self._download_headers(source)),
+            self)
         self._geo_call.done.connect(self._on_geo_loaded)
         self._geo_call.error.connect(self._on_geo_error)
         self._geo_call.start()
+
+    def _download_headers(self, source: dict) -> Optional[dict]:
+        """EpidBot artifact URLs need the API key; foreign URLs stay clean."""
+        url = str(source.get("url") or "")
+        if source.get("artifact") or url.startswith(self.client.base_url):
+            return self.client.auth_headers()
+        return None
 
     def _on_geo_loaded(self, layer_name: str):
         self._geo_call = None

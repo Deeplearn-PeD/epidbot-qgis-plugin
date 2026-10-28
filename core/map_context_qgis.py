@@ -174,6 +174,14 @@ _SELECTION_FIELD_LIMIT = 8
 _SELECTION_VALUE_MAX_CHARS = 60
 
 
+def canvas_extent_4326(iface) -> Optional[Dict[str, Any]]:
+    """Public helper: the current canvas extent reprojected to EPSG:4326."""
+    try:
+        return _canvas_extent_4326(iface.mapCanvas())
+    except Exception:
+        return None
+
+
 def collect_selection_summary(iface, max_features: int = _SELECTION_FEATURE_LIMIT,
                               ) -> Optional[str]:
     """Build a compact text summary of the features selected on the canvas.

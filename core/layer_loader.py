@@ -100,13 +100,14 @@ def _unique_layer_name(base: str) -> str:
 # Download helpers
 # ---------------------------------------------------------------------------
 
-def _download(url: str) -> str:
+def _download(url: str, headers: Optional[Dict[str, str]] = None) -> str:
     """Download ``url`` into the layers cache; return the local path."""
     os.makedirs(layers_dir(), exist_ok=True)
     filename = os.path.basename(urllib.parse.urlsplit(url).path) or "data"
     target = os.path.join(layers_dir(), filename)
     try:
-        with requests.get(url, stream=True, timeout=_DOWNLOAD_TIMEOUT) as resp:
+        with requests.get(url, stream=True, timeout=_DOWNLOAD_TIMEOUT,
+                          headers=headers or {}) as resp:
             resp.raise_for_status()
             size = 0
             with open(target, "wb") as fh:
@@ -124,11 +125,15 @@ def _download(url: str) -> str:
 # QGIS layer creation
 # ---------------------------------------------------------------------------
 
-def add_source_to_canvas(iface, source: Dict[str, Any]) -> str:
+def add_source_to_canvas(iface, source: Dict[str, Any],
+                         headers: Optional[Dict[str, str]] = None,
+                         ) -> str:
     """Turn a geodata source into a layer and add it to the project.
 
     :param iface: ``QgisInterface`` (canvas refresh + message bar).
     :param source: dict from :func:`core.geo_extract.extract_geo_sources`.
+    :param headers: optional HTTP headers for downloads (e.g. EpidBot
+        artifact URLs need the ``X-API-Key`` header).
     :returns: the layer name added.
     :raises GeoLoadError: when the source cannot be loaded.
     """
@@ -141,7 +146,7 @@ def add_source_to_canvas(iface, source: Dict[str, Any]) -> str:
         path = _write_temp_geojson(source.get("content") or "")
         layer = QgsVectorLayer(path, _unique_layer_name(label), "ogr")
     elif kind == "url":
-        path = _download(source["url"])
+        path = _download(source["url"], headers=headers)
         if source.get("format") == "table":
             layer = _csv_layer(path, label)
         else:

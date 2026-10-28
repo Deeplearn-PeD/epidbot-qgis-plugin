@@ -232,6 +232,50 @@ class EpidBotApiClient:
         """Verify the API key against ``GET /auth/me``; returns user info."""
         return self._request("GET", "/auth/me")
 
+    def upload_artifact(self, file_path: str,
+                        content_type: str = "application/geo+json",
+                        ) -> Dict[str, Any]:
+        """Upload a layer file as an artifact (multipart).
+
+        :param file_path: local path of the GeoJSON/GPKG file to upload.
+        :returns: the server response (expected to contain the new
+            artifact's id under ``id`` or ``artifact_id``).
+        :raises EpidBotApiError: on HTTP/network errors.
+        """
+        import os
+
+        if not self.base_url:
+            raise EpidBotApiError("EpidBot server URL is not configured.")
+        url = "{}{}/artifacts".format(self.base_url, API_PREFIX)
+        filename = os.path.basename(file_path)
+        try:
+            with open(file_path, "rb") as handle:
+                response = self.session.request(
+                    "POST", url, headers=self._auth_headers(),
+                    files={"file": (filename, handle, content_type)},
+                    timeout=self.request_timeout,
+                )
+        except requests.exceptions.RequestException as exc:
+            raise EpidBotApiError(
+                "artifact upload to {} failed: {}".format(url, exc)) from exc
+        if response.status_code >= 400:
+            detail = self._error_detail(response)
+            raise EpidBotApiError(
+                "artifact upload failed (HTTP {}): {}".format(
+                    response.status_code, detail),
+                status_code=response.status_code)
+        if not response.content:
+            return {}
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise EpidBotApiError(
+                "non-JSON response from artifact upload") from exc
+
+    def auth_headers(self) -> Dict[str, str]:
+        """Public authentication headers (for authenticated downloads)."""
+        return self._auth_headers()
+
     def list_sessions(self) -> List[dict]:
         """List the user's chat sessions (newest first per API ordering)."""
         return self._request("GET", "/sessions")
@@ -246,6 +290,7 @@ class EpidBotApiClient:
 
     def send_message(self, message: str, session_id: Optional[int] = None,
                      locale: str = "en", cancel_event=None,
+                     artifact_ids: Optional[List[int]] = None,
                      on_status: Optional[Callable[[str], None]] = None,
                      on_submitted: Optional[Callable[[str, int], None]] = None,
                      ) -> Dict[str, Any]:
@@ -257,6 +302,8 @@ class EpidBotApiClient:
 
         :param cancel_event: optional ``threading.Event``; when set, polling
             stops and :class:`ChatCancelled` is raised.
+        :param artifact_ids: optional ids of previously uploaded layer
+            artifacts referenced by this message.
         :param on_status: progress callback receiving human-readable status.
         :param on_submitted: callback with ``(job_id, session_id)`` once the
             job is accepted.
@@ -266,11 +313,11 @@ class EpidBotApiClient:
         :raises EpidBotApiError: on submission/polling failures or when the
             job ends in the ``failed`` state.
         """
-        submitted = self._request(
-            "POST", "/chat",
-            json_body={"message": message, "session_id": session_id,
-                       "locale": locale},
-        )
+        payload = {"message": message, "session_id": session_id,
+                   "locale": locale}
+        if artifact_ids:
+            payload["artifact_ids"] = [int(a) for a in artifact_ids]
+        submitted = self._request("POST", "/chat", json_body=payload)
         job_id = submitted["job_id"]
         effective_session = submitted.get("session_id")
         if on_submitted is not None:

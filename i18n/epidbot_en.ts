@@ -179,6 +179,118 @@
         <source>Error: {}</source>
         <translation>Error: {}</translation>
     </message>
+    <message>
+        <source>Upload as artifact (server)</source>
+        <translation>Upload as artifact (server)</translation>
+    </message>
+    <message>
+        <source>Remove attachment</source>
+        <translation>Remove attachment</translation>
+    </message>
+    <message>
+        <source>Attachment dropped - the map context (field names, sample values, counts) will be sent instead.</source>
+        <translation>Attachment dropped - the map context (field names, sample values, counts) will be sent instead.</translation>
+    </message>
+    <message>
+        <source>No vector layers on the map.</source>
+        <translation>No vector layers on the map.</translation>
+    </message>
+    <message>
+        <source>Attach visible features in extent</source>
+        <translation>Attach visible features in extent</translation>
+    </message>
+    <message>
+        <source>Still preparing the previous attachment...</source>
+        <translation>Still preparing the previous attachment...</translation>
+    </message>
+    <message>
+        <source>Limit to current extent</source>
+        <translation>Limit to current extent</translation>
+    </message>
+    <message>
+        <source>Preparing attachment...</source>
+        <translation>Preparing attachment...</translation>
+    </message>
+    <message>
+        <source> Join the data by the &apos;{}&apos; field.</source>
+        <translation> Join the data by the &apos;{}&apos; field.</translation>
+    </message>
+    <message>
+        <source>Reduce coordinate precision</source>
+        <translation>Reduce coordinate precision</translation>
+    </message>
+    <message>
+        <source>{op} &apos;{field}&apos; on &apos;{layer}&apos;: {matched} features{note}</source>
+        <translation>{op} &apos;{field}&apos; on &apos;{layer}&apos;: {matched} features{note}</translation>
+    </message>
+    <message>
+        <source>Add a new field to this layer with the data you can fetch (e.g. population counts).{hint} Use the identifiers attached above as join keys and return the result as an epidbot-edit block.</source>
+        <translation>Add a new field to this layer with the data you can fetch (e.g. population counts).{hint} Use the identifiers attached above as join keys and return the result as an epidbot-edit block.</translation>
+    </message>
+    <message>
+        <source>Edit not applied: {}</source>
+        <translation>Edit not applied: {}</translation>
+    </message>
+    <message>
+        <source> ({unmatched} keys did not match)</source>
+        <translation> ({unmatched} keys did not match)</translation>
+    </message>
+    <message>
+        <source>Attach entire layer…</source>
+        <translation>Attach entire layer…</translation>
+    </message>
+    <message>
+        <source>Attach selected features</source>
+        <translation>Attach selected features</translation>
+    </message>
+    <message>
+        <source>Attach identifiers only (for edits)</source>
+        <translation>Attach identifiers only (for edits)</translation>
+    </message>
+    <message>
+        <source>Attachment too large</source>
+        <translation>Attachment too large</translation>
+    </message>
+    <message>
+        <source>Narrow to selected features</source>
+        <translation>Narrow to selected features</translation>
+    </message>
+    <message>
+        <source>&apos;{label}&apos; is {size} KB, above the {budget} KB inline budget.</source>
+        <translation>&apos;{label}&apos; is {size} KB, above the {budget} KB inline budget.</translation>
+    </message>
+    <message>
+        <source>Attach layer</source>
+        <translation>Attach layer</translation>
+    </message>
+    <message>
+        <source>Server did not return an artifact id.</source>
+        <translation>Server did not return an artifact id.</translation>
+    </message>
+    <message>
+        <source>Choose a layer:</source>
+        <translation>Choose a layer:</translation>
+    </message>
+    <message>
+        <source>Uploading artifact...</source>
+        <translation>Uploading artifact...</translation>
+    </message>
+    <message>
+        <source>Attach layer data to the message</source>
+        <translation>Attach layer data to the message</translation>
+    </message>
+    <message>
+        <source>Artifact upload failed: {}</source>
+        <translation>Artifact upload failed: {}</translation>
+    </message>
+    <message>
+        <source>Send statistics only</source>
+        <translation>Send statistics only</translation>
+    </message>
+    <message>
+        <source>Attachment failed</source>
+        <translation>Attachment failed</translation>
+    </message>
 </context>
 <context>
     <name>MessageWidget</name>
@@ -217,6 +329,10 @@
     <message>
         <source>Save plot</source>
         <translation>Save plot</translation>
+    </message>
+    <message>
+        <source>Review field edit: {name} ({type})</source>
+        <translation>Review field edit: {name} ({type})</translation>
     </message>
 </context>
 <context>
@@ -281,6 +397,14 @@
         <source>Status poll interval</source>
         <translation>Status poll interval</translation>
     </message>
+    <message>
+        <source>Inline attachment budget</source>
+        <translation>Inline attachment budget</translation>
+    </message>
+    <message>
+        <source>Upload large layers as artifacts (needs EpidBot server support)</source>
+        <translation>Upload large layers as artifacts (needs EpidBot server support)</translation>
+    </message>
 </context>
 
 <context>
@@ -312,6 +436,71 @@
     <message>
         <source>EpidBot Chat</source>
         <translation>EpidBot Chat</translation>
+    </message>
+
+    <message>
+        <source>Let EpidBot edit this layer…</source>
+        <translation>Let EpidBot edit this layer…</translation>
+    </message>
+    <message>
+        <source>Attach layer identifiers and ask EpidBot to add or update a field (result is reviewed before anything is written)</source>
+        <translation>Attach layer identifiers and ask EpidBot to add or update a field (result is reviewed before anything is written)</translation>
+    </message>
+</context>
+
+<context>
+    <name>EditPreviewDialog</name>
+    <message>
+        <source>Update</source>
+        <translation>Update</translation>
+    </message>
+    <message>
+        <source>Cannot join by this key: {}</source>
+        <translation>Cannot join by this key: {}</translation>
+    </message>
+    <message>
+        <source>Matches {matched} of {total} values ({unmatched} unmatched, {invalid} invalid).</source>
+        <translation>Matches {matched} of {total} values ({unmatched} unmatched, {invalid} invalid).</translation>
+    </message>
+    <message>
+        <source>EpidBot proposes the following change to your layer data. Review it carefully - it will modify the attribute table.</source>
+        <translation>EpidBot proposes the following change to your layer data. Review it carefully - it will modify the attribute table.</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>Apply</translation>
+    </message>
+    <message>
+        <source> (⚠ values ESTIMATED by the model - verify before use)</source>
+        <translation> (⚠ values ESTIMATED by the model - verify before use)</translation>
+    </message>
+    <message>
+        <source>This edit operation is invalid:</source>
+        <translation>This edit operation is invalid:</translation>
+    </message>
+    <message>
+        <source>No matching layer found.</source>
+        <translation>No matching layer found.</translation>
+    </message>
+    <message>
+        <source>Unmatched keys: {}{}</source>
+        <translation>Unmatched keys: {}{}</translation>
+    </message>
+    <message>
+        <source>… and {} more</source>
+        <translation>… and {} more</translation>
+    </message>
+    <message>
+        <source> (values fetched from a data source)</source>
+        <translation> (values fetched from a data source)</translation>
+    </message>
+    <message>
+        <source>EpidBot wants to edit a layer</source>
+        <translation>EpidBot wants to edit a layer</translation>
+    </message>
+    <message>
+        <source><b>{op}</b> field <b>{name}</b> ({type}) — join by <b>{key}</b>{confidence}</source>
+        <translation><b>{op}</b> field <b>{name}</b> ({type}) — join by <b>{key}</b>{confidence}</translation>
     </message>
 
 </context>

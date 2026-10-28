@@ -29,8 +29,17 @@ package.
     every prompt.
   - *Spatial prompts* — one-click toolbar actions to ask about the current
     map extent or the features you have selected.
-  - *"Add to map"* — GeoJSON blocks and dataset URLs in answers become styled
-    map layers on the canvas with a single click.
+  - *"Add to map"* — GeoJSON blocks, dataset URLs and EpidBot artifacts in
+    answers become styled map layers on the canvas with a single click.
+- **Layer exchange** — send layers *to* EpidBot: attach selected features,
+  the extent snapshot, or a whole layer to any message (with a size budget
+  and interactive reduction options). Larger layers can be uploaded as
+  server artifacts when your EpidBot server supports them.
+- **Attribute write-back** — ask EpidBot to enrich your layers ("add a
+  field with population counts"): proposed edits arrive as reviewable
+  `epidbot-edit` operations and are only applied after you inspect a
+  preview (matched features, unmatched keys, value samples) — inside a
+  normal QGIS edit session, so undo always works.
 - **API-key authentication** — a personal EpidBot API key is sent on every
   request via the `X-API-Key` header. The key is stored in the system
   keyring when the optional `keyring` package is available, with a

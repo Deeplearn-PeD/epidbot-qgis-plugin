@@ -40,6 +40,7 @@ class MessageWidget(QWidget):
 
     plotActionRequested = pyqtSignal(str, str)
     geoActionRequested = pyqtSignal(object)
+    editActionRequested = pyqtSignal(object)
 
     def __init__(self, role: str, text: str,
                  plot_files: Optional[List[str]] = None,
@@ -171,6 +172,26 @@ class MessageWidget(QWidget):
         row.addLayout(column)
         row.addStretch(1)
         return box
+
+    def set_edit_ops(self, edit_ops: List[dict]) -> None:
+        """Add one review row per proposed attribute edit operation."""
+        for index, op in enumerate(edit_ops):
+            field = (op.get("field") or {})
+            name = field.get("name") or "?"
+            type_name = field.get("type") or ""
+            label = self.tr("Review field edit: {name} ({type})").format(
+                name=name, type=type_name)
+            row = QHBoxLayout()
+            button = QToolButton(self)
+            button.setText("\U0001F6E0")
+            button.setToolTip(label)
+            button.clicked.connect(
+                lambda _=False, o=op, i=index: self.editActionRequested.emit(o))
+            row.addWidget(button)
+            caption = QLabel(label, self)
+            row.addWidget(caption)
+            row.addStretch(1)
+            self.layout().addLayout(row)
 
     def _build_geo_row(self, source: dict) -> QWidget:
         """One-line row advertising a loadable geodata source."""

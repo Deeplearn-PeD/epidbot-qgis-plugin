@@ -22,19 +22,22 @@ class ChatWorker(QThread):
     cancelled = pyqtSignal()
 
     def __init__(self, client, message: str, session_id=None, locale: str = "en",
-                 parent=None):
+                 parent=None, artifact_ids=None):
         """Create the worker; call :meth:`start` to begin the request.
 
         :param client: an :class:`EpidBotApiClient` (or test double).
         :param message: the user's message text.
         :param session_id: optional EpidBot session id (None creates one).
         :param locale: response language, e.g. ``"en"`` or ``"pt-BR"``.
+        :param artifact_ids: optional ids of uploaded layer artifacts
+            referenced by this message.
         """
         super().__init__(parent)
         self.client = client
         self.message = message
         self.session_id = session_id
         self.locale = locale
+        self.artifact_ids = list(artifact_ids or [])
         self._cancel_event = threading.Event()
 
     def run(self):  # noqa: D102 - QThread override
@@ -43,6 +46,7 @@ class ChatWorker(QThread):
                 self.message,
                 session_id=self.session_id,
                 locale=self.locale,
+                artifact_ids=self.artifact_ids or None,
                 cancel_event=self._cancel_event,
                 on_status=self.statusChanged.emit,
                 on_submitted=lambda job_id, session_id:

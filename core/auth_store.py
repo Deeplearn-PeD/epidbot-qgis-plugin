@@ -26,6 +26,8 @@ _PLAIN_KEYS = {
     "locale": "en",
     "poll_interval": 1.5,
     "include_map_context": True,
+    "inline_budget_kb": 64.0,
+    "artifact_uploads": False,
 }
 
 _SECRET_KEYS = ("api_key",)

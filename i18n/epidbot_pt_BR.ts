@@ -179,6 +179,118 @@
         <source>Error: {}</source>
         <translation>Erro: {}</translation>
     </message>
+    <message>
+        <source>Upload as artifact (server)</source>
+        <translation>Enviar como artefato (servidor)</translation>
+    </message>
+    <message>
+        <source>Remove attachment</source>
+        <translation>Remover anexo</translation>
+    </message>
+    <message>
+        <source>Attachment dropped - the map context (field names, sample values, counts) will be sent instead.</source>
+        <translation>Anexo descartado - o contexto do mapa (nomes de campos, valores de exemplo, contagens) será enviado em vez disso.</translation>
+    </message>
+    <message>
+        <source>No vector layers on the map.</source>
+        <translation>Nenhuma camada vetorial no mapa.</translation>
+    </message>
+    <message>
+        <source>Attach visible features in extent</source>
+        <translation>Anexar feições visíveis na extensão</translation>
+    </message>
+    <message>
+        <source>Still preparing the previous attachment...</source>
+        <translation>Ainda preparando o anexo anterior...</translation>
+    </message>
+    <message>
+        <source>Limit to current extent</source>
+        <translation>Limitar à extensão atual</translation>
+    </message>
+    <message>
+        <source>Preparing attachment...</source>
+        <translation>Preparando anexo...</translation>
+    </message>
+    <message>
+        <source> Join the data by the &apos;{}&apos; field.</source>
+        <translation> Junte os dados pelo campo &apos;{}&apos;.</translation>
+    </message>
+    <message>
+        <source>Reduce coordinate precision</source>
+        <translation>Reduzir a precisão das coordenadas</translation>
+    </message>
+    <message>
+        <source>{op} &apos;{field}&apos; on &apos;{layer}&apos;: {matched} features{note}</source>
+        <translation>{op} &apos;{field}&apos; em &apos;{layer}&apos;: {matched} feições{note}</translation>
+    </message>
+    <message>
+        <source>Add a new field to this layer with the data you can fetch (e.g. population counts).{hint} Use the identifiers attached above as join keys and return the result as an epidbot-edit block.</source>
+        <translation>Adicione um novo campo a esta camada com os dados que você puder obter (ex.: contagens populacionais).{hint} Use os identificadores anexados acima como chaves e devolva o resultado num bloco epidbot-edit.</translation>
+    </message>
+    <message>
+        <source>Edit not applied: {}</source>
+        <translation>Edição não aplicada: {}</translation>
+    </message>
+    <message>
+        <source> ({unmatched} keys did not match)</source>
+        <translation> ({unmatched} chaves não corresponderam)</translation>
+    </message>
+    <message>
+        <source>Attach entire layer…</source>
+        <translation>Anexar camada inteira…</translation>
+    </message>
+    <message>
+        <source>Attach selected features</source>
+        <translation>Anexar feições selecionadas</translation>
+    </message>
+    <message>
+        <source>Attach identifiers only (for edits)</source>
+        <translation>Anexar apenas identificadores (para edições)</translation>
+    </message>
+    <message>
+        <source>Attachment too large</source>
+        <translation>Anexo grande demais</translation>
+    </message>
+    <message>
+        <source>Narrow to selected features</source>
+        <translation>Restringir às feições selecionadas</translation>
+    </message>
+    <message>
+        <source>&apos;{label}&apos; is {size} KB, above the {budget} KB inline budget.</source>
+        <translation>&apos;{label}&apos; tem {size} KB, acima do limite inline de {budget} KB.</translation>
+    </message>
+    <message>
+        <source>Attach layer</source>
+        <translation>Anexar camada</translation>
+    </message>
+    <message>
+        <source>Server did not return an artifact id.</source>
+        <translation>O servidor não retornou um id de artefato.</translation>
+    </message>
+    <message>
+        <source>Choose a layer:</source>
+        <translation>Escolha uma camada:</translation>
+    </message>
+    <message>
+        <source>Uploading artifact...</source>
+        <translation>Enviando artefato...</translation>
+    </message>
+    <message>
+        <source>Attach layer data to the message</source>
+        <translation>Anexar dados da camada à mensagem</translation>
+    </message>
+    <message>
+        <source>Artifact upload failed: {}</source>
+        <translation>Falha no envio do artefato: {}</translation>
+    </message>
+    <message>
+        <source>Send statistics only</source>
+        <translation>Enviar apenas estatísticas</translation>
+    </message>
+    <message>
+        <source>Attachment failed</source>
+        <translation>Falha no anexo</translation>
+    </message>
 </context>
 <context>
     <name>MessageWidget</name>
@@ -217,6 +329,10 @@
     <message>
         <source>Save plot</source>
         <translation>Salvar gráfico</translation>
+    </message>
+    <message>
+        <source>Review field edit: {name} ({type})</source>
+        <translation>Revisar edição de campo: {name} ({type})</translation>
     </message>
 </context>
 <context>
@@ -281,6 +397,14 @@
         <source>Status poll interval</source>
         <translation>Intervalo de consulta de status</translation>
     </message>
+    <message>
+        <source>Inline attachment budget</source>
+        <translation>Limite de anexo inline</translation>
+    </message>
+    <message>
+        <source>Upload large layers as artifacts (needs EpidBot server support)</source>
+        <translation>Enviar camadas grandes como artefatos (requer suporte do servidor EpidBot)</translation>
+    </message>
 </context>
 
 <context>
@@ -312,6 +436,71 @@
     <message>
         <source>EpidBot Chat</source>
         <translation>Chat do EpidBot</translation>
+    </message>
+
+    <message>
+        <source>Let EpidBot edit this layer…</source>
+        <translation>Deixar o EpidBot editar esta camada…</translation>
+    </message>
+    <message>
+        <source>Attach layer identifiers and ask EpidBot to add or update a field (result is reviewed before anything is written)</source>
+        <translation>Anexa identificadores da camada e pede ao EpidBot para adicionar ou atualizar um campo (o resultado é revisado antes de qualquer gravação)</translation>
+    </message>
+</context>
+
+<context>
+    <name>EditPreviewDialog</name>
+    <message>
+        <source>Update</source>
+        <translation>Atualizar</translation>
+    </message>
+    <message>
+        <source>Cannot join by this key: {}</source>
+        <translation>Não foi possível juntar por esta chave: {}</translation>
+    </message>
+    <message>
+        <source>Matches {matched} of {total} values ({unmatched} unmatched, {invalid} invalid).</source>
+        <translation>Corresponde a {matched} de {total} valores ({unmatched} sem correspondência, {invalid} inválidos).</translation>
+    </message>
+    <message>
+        <source>EpidBot proposes the following change to your layer data. Review it carefully - it will modify the attribute table.</source>
+        <translation>O EpidBot propõe a seguinte alteração nos dados da sua camada. Revise com atenção - a tabela de atributos será modificada.</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>Aplicar</translation>
+    </message>
+    <message>
+        <source> (⚠ values ESTIMATED by the model - verify before use)</source>
+        <translation> (⚠ valores ESTIMADOS pelo modelo - verifique antes de usar)</translation>
+    </message>
+    <message>
+        <source>This edit operation is invalid:</source>
+        <translation>Esta operação de edição é inválida:</translation>
+    </message>
+    <message>
+        <source>No matching layer found.</source>
+        <translation>Nenhuma camada correspondente encontrada.</translation>
+    </message>
+    <message>
+        <source>Unmatched keys: {}{}</source>
+        <translation>Chaves sem correspondência: {}{}</translation>
+    </message>
+    <message>
+        <source>… and {} more</source>
+        <translation>… e {} mais</translation>
+    </message>
+    <message>
+        <source> (values fetched from a data source)</source>
+        <translation> (valores obtidos de uma fonte de dados)</translation>
+    </message>
+    <message>
+        <source>EpidBot wants to edit a layer</source>
+        <translation>O EpidBot quer editar uma camada</translation>
+    </message>
+    <message>
+        <source><b>{op}</b> field <b>{name}</b> ({type}) — join by <b>{key}</b>{confidence}</source>
+        <translation><b>{op}</b> do campo <b>{name}</b> ({type}) — juntar por <b>{key}</b>{confidence}</translation>
     </message>
 
 </context>

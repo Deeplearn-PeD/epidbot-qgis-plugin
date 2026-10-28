@@ -297,6 +297,70 @@ class TestSendMessage:
             with pytest.raises(EpidBotApiError, match="quota exceeded"):
                 client.send_message("hi", session_id=1)
 
+    def test_artifact_ids_sent_in_submit_payload(self):
+        fake = FakeSession([
+            FakeResponse(200, json_data={"job_id": "job-9", "session_id": 3,
+                                         "status": "processing"}),
+            FakeResponse(200, json_data={
+                "job_id": "job-9", "status": "completed", "session_id": 3,
+                "content": "ok", "images": [], "error": None}),
+        ])
+        client, _ = make_client(poll_interval=0.001)
+        with mock.patch.object(api_client.requests, "Session",
+                               return_value=fake):
+            client.send_message("analyze", session_id=3, artifact_ids=[7, 9])
+        assert fake.calls[0]["json"]["artifact_ids"] == [7, 9]
+
+
+class TestUploadArtifact:
+    """Multipart layer artifact uploads."""
+
+    def _client_with_fake(self, responses):
+        fake = FakeSession(responses)
+        client, _ = make_client()
+        patcher = mock.patch.object(api_client.requests, "Session",
+                                    return_value=fake)
+        return client, fake, patcher
+
+    def test_upload_returns_parsed_json(self, tmp_path):
+        layer_file = tmp_path / "cases.geojson"
+        layer_file.write_text('{"type": "FeatureCollection"}')
+        client, fake, patcher = self._client_with_fake(
+            [FakeResponse(200, json_data={"id": 12})])
+        with patcher:
+            store = client.auth_store
+            store.set_api_key("ek_x")
+            result = client.upload_artifact(str(layer_file))
+        assert result == {"id": 12}
+        call = fake.calls[0]
+        assert call["url"].endswith("/api/v1/artifacts")
+        assert call["headers"]["X-API-Key"] == "ek_x"
+        # multipart body carries the file (FakeSession records kwargs["files"])
+        assert "files" in call
+
+    def test_upload_http_error_raises_with_detail(self, tmp_path):
+        layer_file = tmp_path / "cases.geojson"
+        layer_file.write_text("{}")
+        client, _, patcher = self._client_with_fake(
+            [FakeResponse(413, json_data={"detail": "too large"})])
+        with patcher:
+            with pytest.raises(EpidBotApiError, match="too large"):
+                client.upload_artifact(str(layer_file))
+
+    def test_upload_network_error_is_wrapped(self, tmp_path):
+        import requests as requests_lib
+
+        layer_file = tmp_path / "cases.geojson"
+        layer_file.write_text("{}")
+        fake = MagicMock()
+        fake.request.side_effect = requests_lib.exceptions.ConnectionError(
+            "boom")
+        client, _ = make_client(max_retries=0)
+        with mock.patch.object(api_client.requests, "Session",
+                               return_value=fake):
+            with pytest.raises(EpidBotApiError, match="artifact upload"):
+                client.upload_artifact(str(layer_file))
+
     def test_cancel_event_stops_polling(self):
         fake = FakeSession([
             FakeResponse(200, json_data={"job_id": "job-4", "session_id": 1,

@@ -75,6 +75,14 @@ class EpidbotPlugin(QObject):
         selection_action.triggered.connect(self._prompt_about_selection)
         self._register_action(selection_action)
 
+        edit_action = QAction(self.tr("Let EpidBot edit this layer…"),
+                              self.iface.mainWindow())
+        edit_action.setToolTip(self.tr(
+            "Attach layer identifiers and ask EpidBot to add or update a "
+            "field (result is reviewed before anything is written)"))
+        edit_action.triggered.connect(self._prompt_edit_layer)
+        self._register_action(edit_action)
+
         self._create_dock()
 
     def unload(self):
@@ -145,6 +153,11 @@ class EpidbotPlugin(QObject):
         """Start a selection-analysis prompt (toolbar action entry point)."""
         if self.dock is not None:
             self.dock.prompt_about_selection()
+
+    def _prompt_edit_layer(self):
+        """Start an attribute write-back prompt (toolbar entry point)."""
+        if self.dock is not None:
+            self.dock.prompt_edit_layer()
 
     # ------------------------------------------------------------------
     # Settings

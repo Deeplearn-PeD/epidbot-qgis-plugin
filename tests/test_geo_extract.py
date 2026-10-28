@@ -2,7 +2,8 @@
 
 import json
 
-from core.geo_extract import extract_geo_sources, _looks_like_geojson
+from core.geo_extract import (extract_edit_ops, extract_geo_sources,
+                              _looks_like_geojson)
 
 FEATURE_COLLECTION = {
     "type": "FeatureCollection",
@@ -83,3 +84,54 @@ class TestLooksLikeGeojson:
 
     def test_broken_json_is_rejected(self):
         assert not _looks_like_geojson("{not json")
+
+
+class TestExtractEditOps:
+    """`` ```epidbot-edit `` blocks carry attribute edit operations."""
+
+    EDIT_OP = {"op": "add_field", "layer": "dengue",
+               "field": {"name": "pop", "type": "integer"},
+               "key": "CD_MUN",
+               "values": {"1100205": 12345}}
+
+    def test_edit_block_is_extracted(self):
+        text = "```epidbot-edit\n{}\n```".format(json.dumps(self.EDIT_OP))
+        ops = extract_edit_ops(text)
+        assert ops == [self.EDIT_OP]
+
+    def test_edit_list_block_expands(self):
+        text = "```epidbot-edit\n[{}, {}]\n```".format(
+            json.dumps(self.EDIT_OP), json.dumps(dict(self.EDIT_OP)))
+        assert len(extract_edit_ops(text)) == 2
+
+    def test_malformed_edit_block_is_skipped(self):
+        text = "```epidbot-edit\n{not json}\n```"
+        assert extract_edit_ops(text) == []
+
+    def test_geojson_fences_are_not_edit_ops(self):
+        text = "```json\n{}\n```".format(json.dumps(self.EDIT_OP))
+        assert extract_edit_ops(text) == []
+
+    def test_edit_ops_are_not_geo_sources(self):
+        text = "```epidbot-edit\n{}\n```".format(json.dumps(self.EDIT_OP))
+        assert extract_geo_sources(text) == []
+
+
+class TestArtifactUrls:
+    """EpidBot artifact URLs are loadable vector sources."""
+
+    def test_artifact_url_detected_without_extension(self):
+        text = ("Here is the result: "
+                "https://api.epidbot.example/api/v1/artifacts/42")
+        sources = extract_geo_sources(text)
+        assert len(sources) == 1
+        assert sources[0]["kind"] == "url"
+        assert sources[0]["format"] == "vector"
+        assert sources[0]["artifact"] is True
+        assert sources[0]["label"] == "EpidBot artifact 42"
+
+    def test_artifact_url_with_query_string(self):
+        text = "https://api.epidbot.example/api/v1/artifacts/42?download=1"
+        sources = extract_geo_sources(text)
+        assert len(sources) == 1
+        assert sources[0]["artifact"] is True

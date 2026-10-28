@@ -26,6 +26,13 @@ _GEOJSON_TYPES = {"featurecollection", "feature", "point", "multipoint",
                   "linestring", "multilinestring", "polygon", "multipolygon",
                   "geometrycollection"}
 
+# Fence language reserved for attribute edit operations (see
+# core.layer_editor). Parsed separately from geo sources.
+EDIT_FENCE_LANG = "epidbot-edit"
+
+# EpidBot artifact URLs are loadable layers even without a known extension.
+_ARTIFACT_PATH = "/api/v1/artifacts/"
+
 _URL_KINDS = {"geojson": "vector", "json": "vector", "gpkg": "vector",
               "zip": "vector", "csv": "table"}
 
@@ -91,7 +98,18 @@ def extract_geo_sources(text: str) -> List[Dict[str, Any]]:
 
     for match in _RAW_URL_RE.finditer(text or ""):
         url = match.group(0).rstrip(_URL_TRAILING_PUNCT)
-        ext = os.path.splitext(urllib.parse.urlsplit(url).path)[1]
+        path = urllib.parse.urlsplit(url).path
+        if _ARTIFACT_PATH in path:
+            key = ("url", url)
+            if key in seen:
+                continue
+            seen.add(key)
+            artifact_id = path.rstrip("/").rsplit("/", 1)[-1]
+            sources.append({"kind": "url", "url": url, "format": "vector",
+                            "label": "EpidBot artifact {}".format(artifact_id),
+                            "artifact": True})
+            continue
+        ext = os.path.splitext(path)[1]
         ext = ext.lower().lstrip(".")
         if ext not in _URL_KINDS:
             continue
@@ -99,8 +117,33 @@ def extract_geo_sources(text: str) -> List[Dict[str, Any]]:
         if key in seen:
             continue
         seen.add(key)
-        name = os.path.basename(urllib.parse.urlsplit(url).path)
+        name = os.path.basename(path)
         sources.append({"kind": "url", "url": url, "format": _URL_KINDS[ext],
                         "label": name or url})
 
     return sources
+
+
+def extract_edit_ops(text: str) -> List[Dict[str, Any]]:
+    """Extract attribute edit operations from `` ```epidbot-edit `` blocks.
+
+    Malformed blocks are skipped (never fail the whole message); structural
+    validation happens in :mod:`core.layer_editor`.
+    """
+    ops: List[Dict[str, Any]] = []
+    for match in _FENCED_RE.finditer(text or ""):
+        lang = (match.group(1) or "").strip().lower()
+        if lang != EDIT_FENCE_LANG:
+            continue
+        content = match.group(2).strip()
+        if not content:
+            continue
+        try:
+            data = json.loads(content)
+        except ValueError:
+            continue
+        if isinstance(data, list):
+            ops.extend(item for item in data if isinstance(item, dict))
+        elif isinstance(data, dict):
+            ops.append(data)
+    return ops

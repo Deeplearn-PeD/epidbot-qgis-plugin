@@ -1,9 +1,9 @@
 """Settings dialog: server URL, API key, locale, polling."""
 
-from qgis.PyQt.QtWidgets import (QComboBox, QDialog, QDialogButtonBox,
-                             QDoubleSpinBox, QFormLayout, QGroupBox,
-                             QHBoxLayout, QLabel, QLineEdit, QPushButton,
-                             QVBoxLayout)
+from qgis.PyQt.QtWidgets import (QCheckBox, QComboBox, QDialog,
+                             QDialogButtonBox, QDoubleSpinBox, QFormLayout,
+                             QGroupBox, QHBoxLayout, QLabel, QLineEdit,
+                             QPushButton, QVBoxLayout)
 
 from ..core import api_client
 from ..core.api_client import DEFAULT_BASE_URL
@@ -47,6 +47,18 @@ class SettingsDialog(QDialog):
         self.poll_spin.setSuffix(" s")
         form.addRow(self.tr("Status poll interval"), self.poll_spin)
 
+        self.attach_spin = QDoubleSpinBox(self)
+        self.attach_spin.setRange(8.0, 512.0)
+        self.attach_spin.setSingleStep(8.0)
+        self.attach_spin.setSuffix(" KB")
+        self.attach_spin.setValue(64.0)
+        form.addRow(self.tr("Inline attachment budget"), self.attach_spin)
+
+        self.artifacts_check = QCheckBox(self.tr(
+            "Upload large layers as artifacts (needs EpidBot server "
+            "support)"), self)
+        layout.addWidget(self.artifacts_check)
+
         connection_box = QGroupBox(self.tr("Connection test"), self)
         connection_layout = QHBoxLayout(connection_box)
         self.test_button = QPushButton(self.tr("Test connection"), connection_box)
@@ -70,6 +82,10 @@ class SettingsDialog(QDialog):
             str(self.auth_store.get_plain("locale")))
         self.locale_combo.setCurrentIndex(locale_index if locale_index >= 0 else 0)
         self.poll_spin.setValue(float(self.auth_store.get_plain("poll_interval")))
+        self.attach_spin.setValue(float(
+            self.auth_store.get_plain("inline_budget_kb") or 64.0))
+        self.artifacts_check.setChecked(
+            bool(self.auth_store.get_plain("artifact_uploads")))
 
     # ------------------------------------------------------------------
     # Connection test
@@ -113,6 +129,10 @@ class SettingsDialog(QDialog):
         self.auth_store.set_plain("locale",
                                   str(self.locale_combo.currentData()))
         self.auth_store.set_plain("poll_interval", float(self.poll_spin.value()))
+        self.auth_store.set_plain(
+            "inline_budget_kb", float(self.attach_spin.value()))
+        self.auth_store.set_plain(
+            "artifact_uploads", bool(self.artifacts_check.isChecked()))
         key = self.api_key_edit.text().strip()
         if key:
             self.auth_store.set_api_key(key)
