@@ -8,7 +8,7 @@ This project is a standalone repository; it only talks to EpidBot over HTTP
 and does not import the epidbot Python package.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.2"
 
 
 def classFactory(iface):
