@@ -2,9 +2,9 @@
 name=EpidBot
 qgisMinimumVersion=3.28
 qgisMaximumVersion=3.99
-description=Chat with EpidBot, the AI assistant for public health and epidemiological data (DATASUS, WHO, PAHO, ECDC, Malaria Atlas, and more), without leaving QGIS. Requires an EpidBot account on the Max or Team plan (API keys included) and a personal API key.
-about=EpidBot brings the EpidBot AI assistant into QGIS as a dockable chat panel. Requires an EpidBot account on the Max or Team plan (both include API keys) plus a personal API key created in the web app (Settings > API Keys). Ask questions about epidemiological data from Brazilian sources (SINAN, SIM, SIA, SIH) and international ones (WHO, PAHO, ECDC, CDC, Malaria Atlas, and more), request charts, and load results into your project. The plugin automatically injects map context (active layers, CRS, extent) into your prompts so EpidBot can reason about what is on your map. Authentication uses a personal EpidBot API key, sent as the X-API-Key header and stored in the system keyring when available.
-version=0.3.0
+description=Chat with EpidBot, the AI assistant for public health and epidemiological data (DATASUS, WHO, PAHO, ECDC, Malaria Atlas, and more), without leaving QGIS. Requires an EpidBot account on a paid plan (Pro, Max or Team) and a personal API key.
+about=EpidBot brings the EpidBot AI assistant into QGIS as a dockable chat panel. Requires an EpidBot account on a paid plan (Pro, Max or Team; all include API keys) plus a personal API key created in the web app (Settings > Integrations > API Keys). Ask questions about epidemiological data from Brazilian sources (SINAN, SIM, SIA, SIH) and international ones (WHO, PAHO, ECDC, CDC, Malaria Atlas, and more), request charts, and load results into your project. The plugin automatically injects map context (active layers, CRS, extent) into your prompts so EpidBot can reason about what is on your map. Authentication uses a personal EpidBot API key, sent as the X-API-Key header and stored in the system keyring when available.
+version=0.3.1
 author=EpidBot Team
 email=fccoelho@gmail.com
 
@@ -19,7 +19,8 @@ tags=epidemiology,dengue,malaria,DATASUS,SINAN,WHO,PAHO,public health,global hea
 
 # Changelog and experimental flag for the first release.
 # Continuation lines must be indented (configparser treats them as value continuations).
-changelog=0.3.0 - Layer exchange: attach layers to prompts (selected features, extent snapshot, whole layer, or identifiers-only) with a size budget and interactive reduction; attribute write-back - EpidBot proposes field edits as reviewable epidbot-edit operations, applied only after preview and always inside a QGIS edit session; authenticated downloads for EpidBot artifacts; optional artifact uploads for large layers (server support required).
+changelog=0.3.1 - Plan requirement updated: API keys are now available from the Pro plan up, so the plugin runs on Pro, Max and Team. API keys live in Settings > Integrations in the web app.
+ 0.3.0 - Layer exchange: attach layers to prompts (selected features, extent snapshot, whole layer, or identifiers-only) with a size budget and interactive reduction; attribute write-back - EpidBot proposes field edits as reviewable epidbot-edit operations, applied only after preview and always inside a QGIS edit session; authenticated downloads for EpidBot artifacts; optional artifact uploads for large layers (server support required).
  0.2.2 - Plugin metadata: the short description, about text and tags now describe EpidBot's full data coverage (WHO, PAHO, ECDC, CDC, Malaria Atlas and more) instead of framing it as a DATASUS-only assistant.
  0.2.1 - Clean pass of the QGIS plugin repository security scan (Bandit): best-effort handlers rewritten with contextlib.suppress, SHA1 marked usedforsecurity=False (cache filename digest only), Bandit added to CI.
  0.2.0 - Map integration: richer map context (fields, sample values, selected features); 'Ask about this extent' and 'Ask about selection' toolbar prompts; 'Add to map' action loads GeoJSON/CSV data found in answers onto the canvas; Markdown tables and copyable code blocks; conversation export to Markdown; quick-prompt presets; automatic retries for transient network errors. Now a stable (non-experimental) release.
