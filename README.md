@@ -50,6 +50,10 @@ package.
 
 ## Installation
 
+To use the plugin you need an EpidBot account on the **Max or Team** plan
+(API keys are included in both) and a personal API key created under
+*Settings → API Keys*.
+
 ### From the official QGIS plugin repository (recommended)
 
 The plugin is published as [EpidBot](https://plugins.qgis.org/plugins/epidbot/)
